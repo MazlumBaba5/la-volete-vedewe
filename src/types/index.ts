@@ -6,10 +6,72 @@
 export interface User {
   id: string;
   email: string;
+  role: 'guest' | 'advisor' | 'admin';
   createdAt: Date;
 }
 
-// Advisor
+export type SubscriptionLevel = 'free' | 'premium' | 'diamond';
+
+// Profile (marketplace listing)
+export interface ProfilePhoto {
+  id: string;
+  url: string;
+  isMain: boolean;
+}
+
+export interface ProfileRate {
+  duration: number; // minutes
+  price: number;
+  label: string;
+}
+
+export interface Profile {
+  id: string;
+  slug: string;
+  name: string;
+  age: number;
+  city: string;
+  district?: string;
+  nationality: string;
+  languages: string[];
+  phone: string;
+  description: string;
+  photos: ProfilePhoto[];
+  services: string[];
+  attributes: {
+    height: number;
+    weight: number;
+    hair: string;
+    eyes: string;
+    measurements?: string;
+    ethnicity: string;
+  };
+  rates: ProfileRate[];
+  availability: 'available' | 'busy' | 'offline';
+  isVerified: boolean;
+  isOnline: boolean;
+  subscriptionLevel: SubscriptionLevel;
+  views: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Category {
+  id: string;
+  slug: string;
+  label: string;
+  icon: string;
+  count: number;
+}
+
+export interface City {
+  id: string;
+  name: string;
+  count: number;
+  region: string;
+}
+
+// Legacy advisor types kept for API compatibility
 export interface Advisor {
   id: string;
   userId: string;
@@ -18,25 +80,12 @@ export interface Advisor {
   description?: string;
   avatar?: string;
   phone?: string;
-  subscriptionLevel: 'free' | 'premium' | 'diamond';
+  subscriptionLevel: SubscriptionLevel;
   isVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Service
-export interface Service {
-  id: string;
-  advisorId: string;
-  name: string;
-  description: string;
-  price: number;
-  duration: number; // in minutes
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Subscription
 export interface Subscription {
   id: string;
   advisorId: string;
@@ -55,17 +104,21 @@ export interface SearchFilters {
   query?: string;
   category?: string;
   city?: string;
+  minAge?: number;
+  maxAge?: number;
   minPrice?: number;
   maxPrice?: number;
-  subscriptionLevel?: 'premium' | 'diamond';
+  subscriptionLevel?: SubscriptionLevel;
   verified?: boolean;
-  sortBy?: 'relevance' | 'price' | 'rating' | 'newest';
+  isOnline?: boolean;
+  services?: string[];
+  sortBy?: 'newest' | 'popular' | 'price_asc' | 'price_desc';
   page?: number;
   limit?: number;
 }
 
 export interface SearchResult {
-  advisors: Advisor[];
+  profiles: Profile[];
   total: number;
   page: number;
   limit: number;

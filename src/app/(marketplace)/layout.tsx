@@ -1,12 +1,16 @@
+import Header from '@/components/layout/Header';
+import Footer from '@/components/layout/Footer';
+
 export default function MarketplaceLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div>
-      <nav>Marketplace Navigation</nav>
+    <>
+      <Header />
       <main>{children}</main>
-    </div>
+      <Footer />
+    </>
   );
 }
