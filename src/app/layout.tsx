@@ -3,12 +3,12 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'EscortItalia – Annunci in tutta Italia',
+    default: 'EscortItalia – Adult Listings Across Italy',
     template: '%s | EscortItalia',
   },
   description:
-    'Il portale di annunci personali più grande in Italia. Trova accompagnatrici, massaggiatrici e tanto altro nella tua città.',
-  keywords: ['annunci', 'accompagnatrici', 'escort italia', 'massaggi'],
+    'The largest adult listings portal in Italy. Find companions, massage professionals and more in your city.',
+  keywords: ['listings', 'companions', 'escort italy', 'massage'],
 };
 
 export default function RootLayout({
@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="it">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

@@ -5,7 +5,7 @@ export default function CategorySection() {
   return (
     <section className="px-4 lg:px-8 py-10" style={{ maxWidth: 1400, margin: '0 auto' }}>
       <h2 className="section-title mb-6">
-        Sfoglia per <span>categoria</span>
+        Browse by <span>category</span>
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         {MOCK_CATEGORIES.map((cat) => (

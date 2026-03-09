@@ -16,14 +16,14 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
     <div className="space-y-6 text-sm">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-200">Filtri</h3>
+        <h3 className="font-semibold text-gray-200">Filters</h3>
         <div className="flex items-center gap-3">
           <button
             onClick={() => onChange({})}
             className="text-xs"
             style={{ color: 'var(--accent)' }}
           >
-            Azzera tutto
+            Reset all
           </button>
           {onClose && (
             <button onClick={onClose} className="text-gray-400 hover:text-white">
@@ -37,13 +37,13 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
 
       {/* Città */}
       <div>
-        <label className="block font-medium text-gray-300 mb-2">Città</label>
+        <label className="block font-medium text-gray-300 mb-2">City</label>
         <select
           value={filters.city ?? ''}
           onChange={(e) => update({ city: e.target.value || undefined })}
           className="input-dark"
         >
-          <option value="">Tutta Italia</option>
+          <option value="">All Cities</option>
           {MOCK_CITIES.map((c: typeof MOCK_CITIES[0]) => (
             <option key={c.id} value={c.name}>
               {c.name} ({c.count})
@@ -55,9 +55,9 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
       {/* Età */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">
-          Età:{' '}
+          Age:{' '}
           <span style={{ color: 'var(--accent)' }}>
-            {filters.minAge ?? 18} – {filters.maxAge ?? 60} anni
+            {filters.minAge ?? 18} – {filters.maxAge ?? 60} yrs
           </span>
         </label>
         <div className="flex gap-3">
@@ -85,7 +85,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
       {/* Prezzo */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">
-          Prezzo / ora:{' '}
+          Price / hour:{' '}
           <span style={{ color: 'var(--accent)' }}>
             €{filters.minPrice ?? 0} – €{filters.maxPrice ?? '∞'}
           </span>
@@ -112,10 +112,10 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
 
       {/* Tier */}
       <div>
-        <label className="block font-medium text-gray-300 mb-2">Livello</label>
+        <label className="block font-medium text-gray-300 mb-2">Tier</label>
         <div className="space-y-2">
           {[
-            { value: undefined, label: 'Tutti' },
+            { value: undefined, label: 'All' },
             { value: 'diamond', label: '💎 Diamond' },
             { value: 'premium', label: '⭐ Premium' },
             { value: 'free', label: 'Standard' },
@@ -136,7 +136,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
 
       {/* Servizi */}
       <div>
-        <label className="block font-medium text-gray-300 mb-2">Servizi</label>
+        <label className="block font-medium text-gray-300 mb-2">Services</label>
         <div className="flex flex-wrap gap-2">
           {AVAILABLE_SERVICES.map((svc: string) => {
             const active = filters.services?.includes(svc);
@@ -173,7 +173,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
             onChange={(e) => update({ verified: e.target.checked || undefined })}
             className="accent-pink-500 w-4 h-4"
           />
-          <span className="text-gray-300">Solo profili verificati ✓</span>
+          <span className="text-gray-300">Verified profiles only ✓</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -183,7 +183,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
             className="accent-pink-500 w-4 h-4"
           />
           <span className="text-gray-300">
-            Solo online{' '}
+            Online only{' '}
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ml-1" />
           </span>
         </label>

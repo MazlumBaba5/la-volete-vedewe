@@ -9,10 +9,10 @@ import { TierBadge } from '@/components/ui/Badge';
 const ME = MOCK_PROFILES[0];
 
 const STATS = [
-  { label: 'Visualizzazioni (7gg)', value: '1.240', delta: '+18%', up: true },
-  { label: 'Contatti ricevuti', value: '47', delta: '+5', up: true },
-  { label: 'Messaggi non letti', value: '3', delta: '', up: false },
-  { label: 'Posizione nei risultati', value: '#2', delta: '↑ 1', up: true },
+  { label: 'Views (7d)', value: '1.240', delta: '+18%', up: true },
+  { label: 'Contacts received', value: '47', delta: '+5', up: true },
+  { label: 'Unread messages', value: '3', delta: '', up: false },
+  { label: 'Position in results', value: '#2', delta: '↑ 1', up: true },
 ];
 
 export default function DashboardPage() {
@@ -48,7 +48,7 @@ export default function DashboardPage() {
             <span className="text-sm font-medium text-gray-200 hidden sm:block">{ME.name}</span>
           </div>
           <Link href="/" className="btn-ghost text-xs px-3 py-1.5">
-            Esci
+            Sign out
           </Link>
         </div>
       </header>
@@ -61,10 +61,10 @@ export default function DashboardPage() {
         >
           {(
             [
-              { id: 'overview', icon: '📊', label: 'Panoramica' },
-              { id: 'profile', icon: '👤', label: 'Il mio profilo' },
-              { id: 'subscription', icon: '💎', label: 'Abbonamento' },
-              { id: 'settings', icon: '⚙️', label: 'Impostazioni' },
+              { id: 'overview', icon: '📊', label: 'Overview' },
+              { id: 'profile', icon: '👤', label: 'My profile' },
+              { id: 'subscription', icon: '💎', label: 'Subscription' },
+              { id: 'settings', icon: '⚙️', label: 'Settings' },
             ] as const
           ).map((tab) => (
             <button
@@ -92,7 +92,7 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
-            Vedi profilo pubblico
+            View public profile
           </Link>
         </aside>
 
@@ -102,10 +102,10 @@ export default function DashboardPage() {
           <div className="flex gap-1 overflow-x-auto pb-4 lg:hidden">
             {(
               [
-                { id: 'overview', label: 'Panoramica' },
-                { id: 'profile', label: 'Profilo' },
-                { id: 'subscription', label: 'Abbonamento' },
-                { id: 'settings', label: 'Impostazioni' },
+                { id: 'overview', label: 'Overview' },
+                { id: 'profile', label: 'Profile' },
+                { id: 'subscription', label: 'Subscription' },
+                { id: 'settings', label: 'Settings' },
               ] as const
             ).map((tab) => (
               <button
@@ -129,10 +129,10 @@ export default function DashboardPage() {
               {/* Welcome */}
               <div>
                 <h1 className="text-2xl font-black text-white">
-                  Ciao, {ME.name}! 👋
+                  Hello, {ME.name}! 👋
                 </h1>
                 <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-                  Ecco un riepilogo della tua attività
+                  Here’s a summary of your activity
                 </p>
               </div>
 
@@ -189,24 +189,24 @@ export default function DashboardPage() {
                         border: '1px solid rgba(34,197,94,0.3)',
                       }}
                     >
-                      ✓ Annuncio attivo
+                      ✓ Listing active
                     </span>
                   </div>
                   <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {ME.city} · {ME.nationality} · {ME.views.toLocaleString()} viste totali
+                    {ME.city} · {ME.nationality} · {ME.views.toLocaleString()} total views
                   </p>
                   <div className="flex gap-2 flex-wrap">
                     <button
                       onClick={() => setActiveTab('profile')}
                       className="btn-outline text-xs px-3 py-1.5"
                     >
-                      Modifica profilo
+                      Edit profile
                     </button>
                     <Link
                       href={`/profilo/${ME.slug}`}
                       className="btn-ghost text-xs px-3 py-1.5"
                     >
-                      Vedi annuncio
+                      View listing
                     </Link>
                   </div>
                 </div>
@@ -223,17 +223,16 @@ export default function DashboardPage() {
                   }}
                 >
                   <h3 className="text-lg font-bold text-white mb-2">
-                    🚀 Passa a Diamond e triplica le visite
+                    🚀 Go Diamond and triple your views
                   </h3>
                   <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-                    I profili Diamond appaiono sempre in prima posizione e ricevono in media 3x più
-                    richieste di contatto.
+                    Diamond profiles always appear at the top and receive on average 3× more contact requests.
                   </p>
                   <button
                     onClick={() => setActiveTab('subscription')}
                     className="btn-accent text-sm px-6 py-2.5"
                   >
-                    Scopri Diamond →
+                    Discover Diamond →
                   </button>
                 </div>
               )}
@@ -243,7 +242,7 @@ export default function DashboardPage() {
           {/* Profile edit tab */}
           {activeTab === 'profile' && (
             <div className="space-y-6 max-w-2xl">
-              <h1 className="text-2xl font-black text-white">Modifica profilo</h1>
+              <h1 className="text-2xl font-black text-white">Edit profile</h1>
 
               <div
                 className="rounded-xl p-6 space-y-5"
@@ -252,7 +251,7 @@ export default function DashboardPage() {
                 {/* Foto */}
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-3">
-                    Foto profilo
+                    Profile photo
                   </label>
                   <div className="flex items-center gap-4">
                     <div
@@ -262,7 +261,7 @@ export default function DashboardPage() {
                       <img src={ME.photos[0]?.url} alt="" className="w-full h-full object-cover" />
                     </div>
                     <button className="btn-ghost text-sm px-4 py-2">
-                      📷 Carica foto
+                      📷 Upload photo
                     </button>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                       Max 10 foto · JPG/PNG/WebP
@@ -271,10 +270,10 @@ export default function DashboardPage() {
                 </div>
 
                 {[
-                  { label: 'Nome / Pseudonimo', value: ME.name, type: 'text' },
-                  { label: 'Città', value: ME.city, type: 'text' },
-                  { label: 'Quartiere / Zona', value: ME.district ?? '', type: 'text' },
-                  { label: 'Telefono', value: ME.phone, type: 'tel' },
+                  { label: 'Name / Alias', value: ME.name, type: 'text' },
+                  { label: 'City', value: ME.city, type: 'text' },
+                  { label: 'District / Area', value: ME.district ?? '', type: 'text' },
+                  { label: 'Phone', value: ME.phone, type: 'tel' },
                 ].map((field) => (
                   <div key={field.label}>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
@@ -290,7 +289,7 @@ export default function DashboardPage() {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                    Descrizione
+                    Description
                   </label>
                   <textarea
                     defaultValue={ME.description}
@@ -300,7 +299,7 @@ export default function DashboardPage() {
                 </div>
 
                 <button className="btn-accent px-6 py-2.5 text-sm">
-                  Salva modifiche
+                  Save changes
                 </button>
               </div>
             </div>
@@ -309,7 +308,7 @@ export default function DashboardPage() {
           {/* Subscription tab */}
           {activeTab === 'subscription' && (
             <div className="space-y-6 max-w-3xl">
-              <h1 className="text-2xl font-black text-white">Abbonamento</h1>
+              <h1 className="text-2xl font-black text-white">Subscription</h1>
 
               <div className="grid sm:grid-cols-3 gap-4">
                 {(
@@ -320,12 +319,12 @@ export default function DashboardPage() {
                       price: '€0',
                       period: '',
                       features: [
-                        '1 foto',
-                        'Posizione base',
-                        'Visibile nei risultati',
+                        '1 photo',
+                        'Base position',
+                        'Visible in results',
                         'No badge',
                       ],
-                      cta: 'Piano attuale',
+                      cta: 'Current plan',
                       current: ME.subscriptionLevel === 'free',
                     },
                     {
@@ -334,12 +333,12 @@ export default function DashboardPage() {
                       price: '€29',
                       period: '/ mese',
                       features: [
-                        'Fino a 5 foto',
-                        'Posizione prioritaria',
+                        'Up to 5 photos',
+                        'Priority position',
                         'Badge ⭐ Premium',
-                        'Statistiche avanzate',
+                        'Advanced statistics',
                       ],
-                      cta: 'Passa a Premium',
+                      cta: 'Upgrade to Premium',
                       current: ME.subscriptionLevel === 'premium',
                     },
                     {
@@ -348,13 +347,13 @@ export default function DashboardPage() {
                       price: '€59',
                       period: '/ mese',
                       features: [
-                        'Foto illimitate',
-                        'In cima ai risultati',
+                        'Unlimited photos',
+                        'Top of results',
                         'Badge 💎 Diamond',
-                        'Statistiche complete',
-                        'Supporto prioritario',
+                        'Full statistics',
+                        'Priority support',
                       ],
-                      cta: 'Passa a Diamond',
+                      cta: 'Upgrade to Diamond',
                       current: ME.subscriptionLevel === 'diamond',
                       highlight: true,
                     },
@@ -375,7 +374,7 @@ export default function DashboardPage() {
                         className="text-xs font-bold px-2 py-0.5 rounded-full self-start"
                         style={{ background: 'var(--accent)', color: '#fff' }}
                       >
-                        CONSIGLIATO
+                        RECOMMENDED
                       </span>
                     )}
                     <div>
@@ -403,14 +402,14 @@ export default function DashboardPage() {
                       className={plan.current ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}
                       disabled={plan.current}
                     >
-                      {plan.current ? '✓ Piano attuale' : plan.cta}
+                      {plan.current ? '✓ Current plan' : plan.cta}
                     </button>
                   </div>
                 ))}
               </div>
 
               <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-                Pagamento sicuro via Stripe · Annulla in qualsiasi momento · Senza vincoli
+                Secure payment via Stripe · Cancel anytime · No commitments
               </p>
             </div>
           )}
@@ -418,16 +417,16 @@ export default function DashboardPage() {
           {/* Settings tab */}
           {activeTab === 'settings' && (
             <div className="space-y-6 max-w-lg">
-              <h1 className="text-2xl font-black text-white">Impostazioni</h1>
+              <h1 className="text-2xl font-black text-white">Settings</h1>
 
               <div
                 className="rounded-xl p-6 space-y-5"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
               >
-                <h3 className="font-semibold text-gray-200">Sicurezza account</h3>
+                <h3 className="font-semibold text-gray-200">Account security</h3>
                 {[
                   { label: 'Email', value: 'sofia@example.com', type: 'email' },
-                  { label: 'Nuova password', value: '', type: 'password', placeholder: '••••••••' },
+                  { label: 'New password', value: '', type: 'password', placeholder: '••••••••' },
                 ].map((field) => (
                   <div key={field.label}>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
@@ -442,7 +441,7 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 <button className="btn-outline text-sm px-4 py-2">
-                  Aggiorna sicurezza
+                  Update security
                 </button>
               </div>
 
@@ -454,10 +453,10 @@ export default function DashboardPage() {
                 }}
               >
                 <h3 className="font-semibold" style={{ color: '#fca5a5' }}>
-                  Zona pericolosa
+                  Danger zone
                 </h3>
                 <p className="text-sm text-gray-400">
-                  Eliminando il tuo account perderai tutti i dati in modo permanente.
+                  Deleting your account will permanently remove all your data.
                 </p>
                 <button
                   className="text-sm px-4 py-2 rounded-lg border transition-all"
@@ -467,7 +466,7 @@ export default function DashboardPage() {
                     color: '#f87171',
                   }}
                 >
-                  Elimina account
+                  Delete account
                 </button>
               </div>
             </div>

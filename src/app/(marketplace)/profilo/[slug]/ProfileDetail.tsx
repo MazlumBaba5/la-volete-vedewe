@@ -25,8 +25,8 @@ export default function ProfileDetail({ profile, related }: Props) {
   };
 
   const availabilityLabel: Record<string, string> = {
-    available: 'Disponibile',
-    busy: 'Occupata',
+    available: 'Available',
+    busy: 'Busy',
     offline: 'Offline',
   };
 
@@ -48,7 +48,7 @@ export default function ProfileDetail({ profile, related }: Props) {
           </Link>
           <span>›</span>
           <Link href="/annunci" className="hover:text-white transition-colors">
-            Annunci
+            Listings
           </Link>
           <span>›</span>
           <Link
@@ -93,7 +93,7 @@ export default function ProfileDetail({ profile, related }: Props) {
                   <div className="absolute top-4 right-4 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium text-emerald-400"
                     style={{ background: 'rgba(0,0,0,0.6)' }}>
                     <span className="online-dot" />
-                    Online ora
+                    Online now
                   </div>
                 )}
               </div>
@@ -129,7 +129,7 @@ export default function ProfileDetail({ profile, related }: Props) {
               className="rounded-xl p-6"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
             >
-              <h2 className="font-bold text-white text-lg mb-3">Su di me</h2>
+              <h2 className="font-bold text-white text-lg mb-3">About me</h2>
               <p className="text-gray-300 leading-relaxed whitespace-pre-line text-sm">
                 {profile.description}
               </p>
@@ -140,7 +140,7 @@ export default function ProfileDetail({ profile, related }: Props) {
               className="rounded-xl p-6"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
             >
-              <h2 className="font-bold text-white text-lg mb-4">Servizi offerti</h2>
+              <h2 className="font-bold text-white text-lg mb-4">Services offered</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.services.map((svc: string) => (
                   <span
@@ -163,19 +163,19 @@ export default function ProfileDetail({ profile, related }: Props) {
               className="rounded-xl p-6"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
             >
-              <h2 className="font-bold text-white text-lg mb-4">Caratteristiche</h2>
+              <h2 className="font-bold text-white text-lg mb-4">Details</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {[
-                  { label: 'Età', value: `${profile.age} anni` },
-                  { label: 'Nazionalità', value: profile.nationality },
-                  { label: 'Altezza', value: `${profile.attributes.height} cm` },
-                  { label: 'Peso', value: `${profile.attributes.weight} kg` },
-                  { label: 'Capelli', value: profile.attributes.hair },
-                  { label: 'Occhi', value: profile.attributes.eyes },
+                  { label: 'Age', value: `${profile.age} yrs` },
+                  { label: 'Nationality', value: profile.nationality },
+                  { label: 'Height', value: `${profile.attributes.height} cm` },
+                  { label: 'Weight', value: `${profile.attributes.weight} kg` },
+                  { label: 'Hair', value: profile.attributes.hair },
+                  { label: 'Eyes', value: profile.attributes.eyes },
                   ...(profile.attributes.measurements
-                    ? [{ label: 'Misure', value: profile.attributes.measurements }]
+                    ? [{ label: 'Measurements', value: profile.attributes.measurements }]
                     : []),
-                  { label: 'Etnia', value: profile.attributes.ethnicity },
+                  { label: 'Ethnicity', value: profile.attributes.ethnicity },
                 ].map(({ label, value }) => (
                   <div
                     key={label}
@@ -196,7 +196,7 @@ export default function ProfileDetail({ profile, related }: Props) {
               className="rounded-xl p-6"
               style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
             >
-              <h2 className="font-bold text-white text-lg mb-3">Lingue parlate</h2>
+              <h2 className="font-bold text-white text-lg mb-3">Languages</h2>
               <div className="flex flex-wrap gap-2">
                 {profile.languages.map((lang: string) => (
                   <span
@@ -229,7 +229,7 @@ export default function ProfileDetail({ profile, related }: Props) {
                       {profile.name}
                     </h1>
                     <p className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {profile.age} anni
+                      {profile.age} yrs
                     </p>
                   </div>
                   {profile.subscriptionLevel !== 'free' && (
@@ -275,12 +275,12 @@ export default function ProfileDetail({ profile, related }: Props) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                {profile.views.toLocaleString()} visualizzazioni
+                {profile.views.toLocaleString()} views
               </div>
 
               {/* Rates */}
               <div>
-                <h3 className="font-semibold text-gray-200 mb-3 text-sm">Tariffe</h3>
+                <h3 className="font-semibold text-gray-200 mb-3 text-sm">Rates</h3>
                 <div className="space-y-2">
                   {profile.rates.map((rate: typeof profile.rates[0]) => (
                     <div
@@ -300,7 +300,7 @@ export default function ProfileDetail({ profile, related }: Props) {
                 onClick={() => setShowContact(true)}
                 className="btn-accent w-full justify-center py-3 text-sm font-semibold"
               >
-                📞 Contatta {profile.name}
+                📞 Contact {profile.name}
               </button>
 
               <button
@@ -312,12 +312,12 @@ export default function ProfileDetail({ profile, related }: Props) {
                   });
                 }}
               >
-                Condividi profilo
+                Share profile
               </button>
 
               {/* Safety notice */}
               <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                🔒 I tuoi dati sono al sicuro. Non condividiamo informazioni con terze parti.
+                🔒 Your data is safe. We never share your information with third parties.
               </p>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function ProfileDetail({ profile, related }: Props) {
         {related.length > 0 && (
           <section className="mt-12">
             <h2 className="section-title mb-6">
-              Altri profili a <span>{profile.city}</span>
+              More profiles in <span>{profile.city}</span>
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {related.map((p) => (

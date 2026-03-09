@@ -36,13 +36,13 @@ export default function AnnunciPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">
-              Annunci{' '}
+              Listings{' '}
               {filters.city && (
-                <span style={{ color: 'var(--accent)' }}>a {filters.city}</span>
+                <span style={{ color: 'var(--accent)' }}>in {filters.city}</span>
               )}
             </h1>
             <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
-              {results.length} profili trovati
+              {results.length} profiles found
             </p>
           </div>
 
@@ -58,10 +58,10 @@ export default function AnnunciPage() {
               }
               className="input-dark text-sm !py-2 w-44"
             >
-              <option value="newest">Più recenti</option>
-              <option value="popular">Più visti</option>
-              <option value="price_asc">Prezzo ↑</option>
-              <option value="price_desc">Prezzo ↓</option>
+              <option value="newest">Newest</option>
+              <option value="popular">Most viewed</option>
+              <option value="price_asc">Price ↑</option>
+              <option value="price_desc">Price ↓</option>
             </select>
 
             {/* Filter toggle (mobile) */}
@@ -77,7 +77,7 @@ export default function AnnunciPage() {
                   d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
                 />
               </svg>
-              Filtri
+              Filters
               {activeFilterCount > 0 && (
                 <span
                   className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white"
@@ -152,12 +152,12 @@ export default function AnnunciPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="text-5xl mb-4">🔍</div>
-                <h3 className="text-xl font-semibold text-white mb-2">Nessun risultato</h3>
+                <h3 className="text-xl font-semibold text-white mb-2">No results</h3>
                 <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
-                  Prova a modificare i filtri di ricerca
+                  Try adjusting your search filters
                 </p>
                 <button onClick={() => handleFilterChange({})} className="btn-outline px-6 py-2">
-                  Azzera filtri
+                  Reset filters
                 </button>
               </div>
             )}
@@ -189,7 +189,7 @@ export default function AnnunciPage() {
                 onClick={() => setFiltersOpen(false)}
                 className="btn-accent w-full justify-center py-3"
               >
-                Applica filtri ({results.length})
+                Apply filters ({results.length})
               </button>
             </div>
           </div>

@@ -38,3 +38,8 @@ Sei un esperto sviluppatore Full-stack senior che lavora su un marketplace di se
 - Il sito deve essere estremamente veloce e ottimizzato per il SEO.
 - La registrazione Advisor deve essere fluida (Identity Check non obbligatorio, ma supporto per verifica SMS).
 - Gestione flessibile di Abbonamenti (Diamond/Premium) e Crediti.
+
+## 7. Lingua dell'Interfaccia
+- **Tutta l'UI deve essere in inglese.** Testi, etichette, messaggi di errore, placeholder, copy di marketing — tutto in inglese.
+- I nomi propri (città, nomi di persona, slug URL) possono rimanere invariati.
+- I commenti nel codice sono in inglese.

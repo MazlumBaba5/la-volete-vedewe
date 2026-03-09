@@ -59,7 +59,7 @@ export default function Header() {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cerca per città, nome o servizio…"
+              placeholder="Search by city, name or service…"
               className="flex-1 bg-transparent px-3 py-2 text-sm text-gray-200 placeholder-gray-500 outline-none"
             />
           </div>
@@ -71,10 +71,10 @@ export default function Header() {
             href="/login"
             className="hidden sm:inline-flex text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
           >
-            Accedi
+            Sign in
           </Link>
           <Link href="/registrati" className="btn-accent text-sm px-4 py-2">
-            Pubblica annuncio
+            Post an ad
           </Link>
           {/* Hamburger */}
           <button
@@ -107,7 +107,7 @@ export default function Header() {
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white whitespace-nowrap rounded-lg transition-colors"
             style={{ ':hover': { background: 'var(--bg-elevated)' } } as React.CSSProperties}
           >
-            Tutti gli annunci
+            All listings
           </Link>
           {MOCK_CATEGORIES.map((cat: typeof MOCK_CATEGORIES[0]) => (
             <Link
@@ -148,7 +148,7 @@ export default function Header() {
               />
             </svg>
             <input
-              placeholder="Cerca…"
+              placeholder="Search…"
               className="flex-1 bg-transparent px-3 py-2.5 text-sm text-gray-200 placeholder-gray-500 outline-none"
             />
           </div>
@@ -170,10 +170,10 @@ export default function Header() {
 
           <div className="flex gap-2 pt-1">
             <Link href="/login" className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
-              Accedi
+              Sign in
             </Link>
             <Link href="/registrati" className="btn-accent text-sm px-4 py-2 flex-1 text-center">
-              Registrati
+              Sign up
             </Link>
           </div>
         </div>

@@ -54,11 +54,11 @@ export default function HeroSection() {
             color: 'var(--accent)',
           }}
         >
-          🇮🇹 &nbsp;+2800 annunci in tutta Italia
+          🇮🇹 &nbsp;+2800 listings across Italy
         </div>
 
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight max-w-3xl">
-          Trova la compagnia{' '}
+          Find the{' '}
           <span
             style={{
               background: 'linear-gradient(135deg, var(--accent), #ff6eb4)',
@@ -66,14 +66,13 @@ export default function HeroSection() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            perfetta
+            perfect
           </span>{' '}
-          per te
+          companion for you
         </h1>
 
         <p className="mt-4 text-gray-400 text-lg max-w-xl">
-          Migliaia di profili verificati nelle principali città italiane. Discrezione e sicurezza
-          garantite.
+          Thousands of verified profiles across Italy’s top cities. Discretion and safety guaranteed.
         </p>
 
         {/* Search box */}
@@ -89,7 +88,7 @@ export default function HeroSection() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            placeholder="Nome, servizio, nazionalità…"
+            placeholder="Name, service, nationality…"
             className="flex-1 bg-transparent px-3 py-2 text-sm text-white placeholder-gray-500 outline-none"
           />
           <select
@@ -99,7 +98,7 @@ export default function HeroSection() {
             style={{ borderColor: 'rgba(255,255,255,0.1)' }}
           >
             <option value="" style={{ background: '#13131f' }}>
-              Tutta Italia
+              All Cities
             </option>
             {MOCK_CITIES.map((c: typeof MOCK_CITIES[0]) => (
               <option key={c.id} value={c.name} style={{ background: '#13131f' }}>
@@ -116,7 +115,7 @@ export default function HeroSection() {
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-            Cerca
+            Search
           </button>
         </div>
 
@@ -142,9 +141,9 @@ export default function HeroSection() {
         {/* Stats */}
         <div className="mt-10 flex gap-8 md:gap-16">
           {[
-            { value: '2.800+', label: 'Annunci attivi' },
-            { value: '98%', label: 'Risposta rapida' },
-            { value: '40+', label: 'Città' },
+            { value: '2.800+', label: 'Active listings' },
+            { value: '98%', label: 'Fast response' },
+            { value: '40+', label: 'Cities' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div

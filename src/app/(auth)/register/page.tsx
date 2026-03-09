@@ -44,17 +44,17 @@ export default function RegisterPage() {
           style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
         >
           <div className="text-5xl">🎉</div>
-          <h2 className="text-2xl font-black text-white">Registrazione completata!</h2>
+          <h2 className="text-2xl font-black text-white">Registration complete!</h2>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             {role === 'advisor'
-              ? 'Il tuo profilo è stato creato. Puoi ora accedere alla tua dashboard e pubblicare il tuo annuncio.'
-              : 'Account creato con successo. Puoi ora sfogliare tutti i profili.'}
+              ? 'Your profile has been created. You can now access your dashboard and post your listing.'
+              : 'Account created successfully. You can now browse all listings.'}
           </p>
           <Link href="/advisor/dashboard" className="btn-accent w-full justify-center py-3 text-sm block">
-            Vai alla dashboard
+            Go to dashboard
           </Link>
           <Link href="/" className="btn-ghost w-full justify-center py-2.5 text-sm block">
-            Torna alla home
+            Back to home
           </Link>
         </div>
       </div>
@@ -72,9 +72,9 @@ export default function RegisterPage() {
       >
         {/* Header */}
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-black text-white">Crea il tuo account</h1>
+          <h1 className="text-2xl font-black text-white">Create your account</h1>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Unisciti alla community più grande d&apos;Italia
+            Join the largest community in Italy
           </p>
         </div>
 
@@ -84,8 +84,8 @@ export default function RegisterPage() {
           style={{ background: 'var(--bg-elevated)' }}
         >
           {([
-            { value: 'advisor', label: '💃 Sono un&apos;accompagnatrice', sub: 'Pubblica il tuo annuncio' },
-            { value: 'guest', label: '👤 Sono un cliente', sub: 'Sfoglia annunci' },
+            { value: 'advisor', label: '💃 I&apos;m an escort', sub: 'Post your listing' },
+            { value: 'guest', label: '👤 I&apos;m a client', sub: 'Browse listings' },
           ] as const).map((opt) => (
             <button
               key={opt.value}
@@ -123,7 +123,7 @@ export default function RegisterPage() {
                   className="text-xs"
                   style={{ color: step >= s ? '#d1d5db' : 'var(--text-muted)' }}
                 >
-                  {s === 1 ? 'Account' : 'Profilo'}
+                  {s === 1 ? 'Account' : 'Profile'}
                 </span>
                 {s < 2 && (
                   <div
@@ -146,7 +146,7 @@ export default function RegisterPage() {
                 required
                 value={form.email}
                 onChange={(e) => update('email', e.target.value)}
-                placeholder="la-tua@email.it"
+                placeholder="your@email.com"
                 className="input-dark"
               />
             </div>
@@ -158,7 +158,7 @@ export default function RegisterPage() {
                 minLength={8}
                 value={form.password}
                 onChange={(e) => update('password', e.target.value)}
-                placeholder="Minimo 8 caratteri"
+                placeholder="At least 8 characters"
                 className="input-dark"
               />
             </div>
@@ -174,8 +174,8 @@ export default function RegisterPage() {
                   className="accent-pink-500 mt-0.5 shrink-0"
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Dichiaro di avere almeno <strong className="text-gray-300">18 anni</strong> e di
-                  essere maggiorenne nel mio paese di residenza.
+                  I confirm I am at least <strong className="text-gray-300">18 years old</strong> and
+                  of legal age in my country of residence.
                 </span>
               </label>
               <label className="flex items-start gap-2.5 cursor-pointer">
@@ -187,11 +187,11 @@ export default function RegisterPage() {
                   className="accent-pink-500 mt-0.5 shrink-0"
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Accetto i{' '}
+                  I agree to the{' '}
                   <Link href="/termini" className="underline" style={{ color: 'var(--accent)' }}>
-                    Termini di servizio
+                    Terms of Service
                   </Link>{' '}
-                  e la{' '}
+                  and the{' '}
                   <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>
                     Privacy Policy
                   </Link>
@@ -205,7 +205,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="btn-accent w-full justify-center py-3 text-sm"
             >
-              {role === 'advisor' ? 'Avanti →' : loading ? 'Registrazione…' : 'Crea account'}
+              {role === 'advisor' ? 'Next →' : loading ? 'Creating account…' : 'Create account'}
             </button>
           </form>
         )}
@@ -216,7 +216,7 @@ export default function RegisterPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                  Nome (o pseudonimo)
+                  Name (or alias)
                 </label>
                 <input
                   type="text"
@@ -228,7 +228,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-400 mb-1.5">Città</label>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">City</label>
                 <input
                   type="text"
                   required
@@ -242,8 +242,8 @@ export default function RegisterPage() {
 
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                Telefono{' '}
-                <span style={{ color: 'var(--text-muted)' }}>(visibile solo agli utenti registrati)</span>
+                Phone{' '}
+                <span style={{ color: 'var(--text-muted)' }}>(visible to registered users only)</span>
               </label>
               <input
                 type="tel"
@@ -263,11 +263,10 @@ export default function RegisterPage() {
               }}
             >
               <p className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
-                💎 Ottieni più visibilità con Diamond
+                💎 Get more visibility with Diamond
               </p>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                I profili Diamond appaiono sempre in cima ai risultati e ricevono il 3× delle
-                visualizzazioni. Puoi fare l&apos;upgrade in qualsiasi momento dalla dashboard.
+                Diamond profiles always appear at the top of results and get 3× the views. You can upgrade at any time from the dashboard.
               </p>
             </div>
 
@@ -277,23 +276,23 @@ export default function RegisterPage() {
                 onClick={() => setStep(1)}
                 className="btn-ghost flex-1 py-2.5 text-sm"
               >
-                ← Indietro
+                ← Back
               </button>
               <button
                 type="submit"
                 disabled={loading}
                 className="btn-accent flex-1 py-2.5 text-sm"
               >
-                {loading ? 'Registrazione…' : 'Completa registrazione'}
+                {loading ? 'Creating account…' : 'Complete registration'}
               </button>
             </div>
           </form>
         )}
 
         <p className="text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Hai già un account?{' '}
+          Already have an account?{' '}
           <Link href="/login" className="font-semibold" style={{ color: 'var(--accent)' }}>
-            Accedi
+            Sign in
           </Link>
         </p>
       </div>

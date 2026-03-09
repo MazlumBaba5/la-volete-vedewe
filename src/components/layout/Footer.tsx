@@ -22,15 +22,15 @@ export default function Footer() {
               EscortItalia
             </span>
             <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              Il portale di annunci personali per adulti più visitato in Italia.
+              The most-visited adult personal ads portal in Italy.
               <br />
-              Tutti i contenuti sono pubblicati da utenti maggiorenni.
+              All content is published by adult users.
             </p>
           </div>
 
           {/* Categorie */}
           <div>
-            <h4 className="font-semibold text-gray-300 mb-3">Categorie</h4>
+            <h4 className="font-semibold text-gray-300 mb-3">Categories</h4>
             <ul className="space-y-2">
               {MOCK_CATEGORIES.slice(0, 6).map((cat: typeof MOCK_CATEGORIES[0]) => (
                 <li key={cat.id}>
@@ -48,7 +48,7 @@ export default function Footer() {
 
           {/* Città */}
           <div>
-            <h4 className="font-semibold text-gray-300 mb-3">Città principali</h4>
+            <h4 className="font-semibold text-gray-300 mb-3">Top Cities</h4>
             <ul className="space-y-2">
               {MOCK_CITIES.slice(0, 8).map((city: typeof MOCK_CITIES[0]) => (
                 <li key={city.id}>
@@ -69,13 +69,13 @@ export default function Footer() {
             <h4 className="font-semibold text-gray-300 mb-3">Info</h4>
             <ul className="space-y-2">
               {[
-                { href: '/come-funziona', label: 'Come funziona' },
-                { href: '/tariffe', label: 'Tariffe' },
-                { href: '/registrati', label: 'Pubblica annuncio' },
-                { href: '/sicurezza', label: 'Sicurezza' },
-                { href: '/contatti', label: 'Contatti' },
+                { href: '/come-funziona', label: 'How it works' },
+                { href: '/tariffe', label: 'Pricing' },
+                { href: '/registrati', label: 'Post an ad' },
+                { href: '/sicurezza', label: 'Safety' },
+                { href: '/contatti', label: 'Contact' },
                 { href: '/privacy', label: 'Privacy Policy' },
-                { href: '/termini', label: 'Termini di servizio' },
+                { href: '/termini', label: 'Terms of Service' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link
@@ -97,11 +97,11 @@ export default function Footer() {
           style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
         >
           <p>
-            ⚠️ Questo sito contiene materiale per adulti. Accedendo dichiari di avere almeno{' '}
-            <strong className="text-gray-400">18 anni</strong>.
+            ⚠️ This site contains adult material. By accessing it you confirm you are at least{' '}
+            <strong className="text-gray-400">18 years old</strong>.
           </p>
           <p>
-            © {new Date().getFullYear()} EscortItalia · Tutti i diritti riservati · P.IVA 00000000000
+            © {new Date().getFullYear()} EscortItalia · All rights reserved
           </p>
         </div>
       </div>

@@ -28,7 +28,7 @@ export default function AuthLayout({
           </span>
         </Link>
         <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">
-          ← Torna alla home
+          ← Back to home
         </Link>
       </header>
       <div className="flex-1">{children}</div>

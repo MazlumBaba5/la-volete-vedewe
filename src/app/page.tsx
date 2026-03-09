@@ -25,14 +25,14 @@ export default function Home() {
         <section className="px-4 lg:px-8 py-10" style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="section-title">
-              Profili in <span>evidenza</span>
+              Featured <span>profiles</span>
             </h2>
             <Link
               href="/annunci?tier=diamond"
               className="text-sm font-medium transition-colors"
               style={{ color: 'var(--accent)' }}
             >
-              Vedi tutti →
+              See all →
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -51,14 +51,14 @@ export default function Home() {
         <section className="px-4 lg:px-8 py-10" style={{ maxWidth: 1400, margin: '0 auto' }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="section-title">
-              Nuovi <span>annunci</span>
+              New <span>listings</span>
             </h2>
             <Link
               href="/annunci"
               className="text-sm font-medium transition-colors"
               style={{ color: 'var(--accent)' }}
             >
-              Vedi tutti →
+              See all →
             </Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -79,7 +79,7 @@ export default function Home() {
         >
           <div style={{ maxWidth: 1400, margin: '0 auto' }}>
             <h2 className="section-title mb-6">
-              Annunci per <span>città</span>
+              Listings by <span>city</span>
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {MOCK_CITIES.map((city) => (
@@ -122,18 +122,18 @@ export default function Home() {
               style={{ background: 'var(--accent)' }}
             />
             <h2 className="text-2xl md:text-3xl font-black text-white mb-3">
-              Sei un'accompagnatrice?
+              Are you an escort?
             </h2>
             <p className="text-gray-400 mb-6 max-w-md mx-auto text-sm">
-              Pubblica il tuo annuncio gratuitamente e raggiungi migliaia di clienti ogni giorno.
-              Upgrade a Diamond o Premium per massima visibilità.
+              Post your listing for free and reach thousands of clients every day.
+              Upgrade to Diamond or Premium for maximum visibility.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/registrati" className="btn-accent px-8 py-3">
-                Pubblica gratis
+                Post for free
               </Link>
               <Link href="/tariffe" className="btn-outline px-8 py-3">
-                Vedi tariffe
+                See pricing
               </Link>
             </div>
           </div>

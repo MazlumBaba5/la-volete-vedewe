@@ -17,7 +17,7 @@ export default function LoginPage() {
     await new Promise((r) => setTimeout(r, 900));
     setLoading(false);
     // Demo: always show error since no real backend
-    setError('Demo: backend non connesso. Usa le credenziali mock demo@test.it / password');
+    setError('Demo: backend not connected. Use mock credentials demo@test.it / password');
   };
 
   return (
@@ -32,9 +32,9 @@ export default function LoginPage() {
       >
         {/* Header */}
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-black text-white">Bentornata/o</h1>
+          <h1 className="text-2xl font-black text-white">Welcome back</h1>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Accedi al tuo account
+            Sign in to your account
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="la-tua@email.it"
+              placeholder="your@email.com"
               className="input-dark"
             />
           </div>
@@ -75,7 +75,7 @@ export default function LoginPage() {
                 className="text-xs transition-colors"
                 style={{ color: 'var(--accent)' }}
               >
-                Password dimenticata?
+                Forgot password?
               </Link>
             </div>
             <input
@@ -99,10 +99,10 @@ export default function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Accesso in corso…
+                Signing in…
               </span>
             ) : (
-              'Accedi'
+              'Sign in'
             )}
           </button>
         </form>
@@ -111,7 +111,7 @@ export default function LoginPage() {
         <div className="flex items-center gap-3">
           <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            oppure
+            or
           </span>
           <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
         </div>
@@ -119,12 +119,12 @@ export default function LoginPage() {
         {/* Social login (mock) */}
         <div className="space-y-2">
           {[
-            { icon: '🔵', label: 'Continua con Facebook' },
-            { icon: '⚪', label: 'Continua con Google' },
+            { icon: '🔵', label: 'Continue with Facebook' },
+            { icon: '⚪', label: 'Continue with Google' },
           ].map((prov) => (
             <button
               key={prov.label}
-              onClick={() => setError('Demo: login social non disponibile in demo')}
+              onClick={() => setError('Demo: social login not available in demo mode')}
               className="btn-ghost w-full justify-center text-sm py-2.5 flex items-center gap-2"
             >
               {prov.icon} {prov.label}
@@ -133,13 +133,13 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs" style={{ color: 'var(--text-muted)' }}>
-          Non hai un account?{' '}
+          Don’t have an account?{' '}
           <Link
             href="/registrati"
             className="font-semibold"
             style={{ color: 'var(--accent)' }}
           >
-            Registrati gratis
+            Sign up for free
           </Link>
         </p>
       </div>

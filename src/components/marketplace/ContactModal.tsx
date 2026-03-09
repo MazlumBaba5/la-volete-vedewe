@@ -80,12 +80,12 @@ export default function ContactModal({ profile, onClose }: Props) {
                 📞
               </div>
               <div>
-                <p className="text-xs text-gray-400 mb-0.5">Numero di telefono</p>
+                <p className="text-xs text-gray-400 mb-0.5">Phone number</p>
                 <p className="font-bold text-white text-lg">{profile.phone}</p>
               </div>
             </div>
             <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-              Ricordati di rispettare sempre la privacy e i confini.
+              Always respect privacy and personal boundaries.
             </p>
           </div>
         ) : (
@@ -102,7 +102,7 @@ export default function ContactModal({ profile, onClose }: Props) {
                 🔒
               </div>
               <div>
-                <p className="text-xs text-gray-400 mb-0.5">Numero di telefono</p>
+                <p className="text-xs text-gray-400 mb-0.5">Phone number</p>
                 <p className="font-bold text-white text-lg tracking-widest select-none">
                   +39 3●● ●●● ●●●●
                 </p>
@@ -110,7 +110,7 @@ export default function ContactModal({ profile, onClose }: Props) {
             </div>
 
             <p className="text-sm text-gray-400 text-center">
-              Accedi o registrati per visualizzare il contatto di{' '}
+              Sign in or sign up to view the contact for{' '}
               <strong className="text-white">{profile.name}</strong>
             </p>
 
@@ -125,10 +125,10 @@ export default function ContactModal({ profile, onClose }: Props) {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Caricamento…
+                  Loading…
                 </>
               ) : (
-                '🔓 Mostra contatto (demo)'
+                '\uD83D\uDD13 Show contact (demo)'
               )}
             </button>
 
@@ -137,13 +137,13 @@ export default function ContactModal({ profile, onClose }: Props) {
                 href="/login"
                 className="btn-outline flex-1 text-center text-sm py-2"
               >
-                Accedi
+                Sign in
               </a>
               <a
                 href="/registrati"
                 className="btn-ghost flex-1 text-center text-sm py-2"
               >
-                Registrati
+                Sign up
               </a>
             </div>
           </div>
