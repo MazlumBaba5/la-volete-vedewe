@@ -71,7 +71,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-medium text-gray-400">Password</label>
               <Link
-                href="/recupera-password"
+                href="/forgot-password"
                 className="text-xs transition-colors"
                 style={{ color: 'var(--accent)' }}
               >
@@ -135,7 +135,7 @@ export default function LoginPage() {
         <p className="text-center text-xs" style={{ color: 'var(--text-muted)' }}>
           Don’t have an account?{' '}
           <Link
-            href="/registrati"
+            href="/register"
             className="font-semibold"
             style={{ color: 'var(--accent)' }}
           >

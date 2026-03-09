@@ -11,7 +11,7 @@ export default function CategorySection() {
         {MOCK_CATEGORIES.map((cat) => (
           <Link
             key={cat.id}
-            href={`/annunci?categoria=${cat.slug}`}
+            href={`/listings?categoria=${cat.slug}`}
             className="flex flex-col items-center gap-2 py-4 px-2 rounded-xl text-center transition-all group"
             style={{
               background: 'var(--bg-card)',

@@ -19,7 +19,7 @@ export default function Footer() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              EscortItalia
+              Lvvd
             </span>
             <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
               The most-visited adult personal ads portal in Italy.
@@ -35,7 +35,7 @@ export default function Footer() {
               {MOCK_CATEGORIES.slice(0, 6).map((cat: typeof MOCK_CATEGORIES[0]) => (
                 <li key={cat.id}>
                   <Link
-                    href={`/annunci?categoria=${cat.slug}`}
+                    href={`/listings?categoria=${cat.slug}`}
                     className="transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -53,7 +53,7 @@ export default function Footer() {
               {MOCK_CITIES.slice(0, 8).map((city: typeof MOCK_CITIES[0]) => (
                 <li key={city.id}>
                   <Link
-                    href={`/annunci?citta=${encodeURIComponent(city.name)}`}
+                    href={`/listings?city=${encodeURIComponent(city.name)}`}
                     className="transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -69,13 +69,13 @@ export default function Footer() {
             <h4 className="font-semibold text-gray-300 mb-3">Info</h4>
             <ul className="space-y-2">
               {[
-                { href: '/come-funziona', label: 'How it works' },
-                { href: '/tariffe', label: 'Pricing' },
-                { href: '/registrati', label: 'Post an ad' },
-                { href: '/sicurezza', label: 'Safety' },
-                { href: '/contatti', label: 'Contact' },
+                { href: '/how-it-works', label: 'How it works' },
+                { href: '/pricing', label: 'Pricing' },
+                { href: '/register', label: 'Post an ad' },
+                { href: '/safety', label: 'Safety' },
+                { href: '/contact', label: 'Contact' },
                 { href: '/privacy', label: 'Privacy Policy' },
-                { href: '/termini', label: 'Terms of Service' },
+                { href: '/terms', label: 'Terms of Service' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link
@@ -101,7 +101,7 @@ export default function Footer() {
             <strong className="text-gray-400">18 years old</strong>.
           </p>
           <p>
-            © {new Date().getFullYear()} EscortItalia · All rights reserved
+            © {new Date().getFullYear()} Lvvd · All rights reserved
           </p>
         </div>
       </div>

@@ -34,7 +34,7 @@ export default function DashboardPage() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            EscortItalia
+            Lvvd
           </span>
         </Link>
         <div className="flex items-center gap-3">
@@ -85,7 +85,7 @@ export default function DashboardPage() {
           <div className="flex-1" />
 
           <Link
-            href={`/profilo/${ME.slug}`}
+            href={`/profile/${ME.slug}`}
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-gray-500 hover:text-gray-300 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                       Edit profile
                     </button>
                     <Link
-                      href={`/profilo/${ME.slug}`}
+                      href={`/profile/${ME.slug}`}
                       className="btn-ghost text-xs px-3 py-1.5"
                     >
                       View listing

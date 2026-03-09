@@ -9,6 +9,6 @@ export default function SearchPage({
   const query = new URLSearchParams();
   const sp = searchParams as Record<string, string>;
   if (sp.q) query.set('q', sp.q);
-  if (sp.city) query.set('citta', sp.city);
-  redirect(`/annunci?${query.toString()}`);
+  if (sp.city) query.set('city', sp.city);
+  redirect(`/listings?${query.toString()}`);
 }

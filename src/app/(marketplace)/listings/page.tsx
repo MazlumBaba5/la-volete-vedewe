@@ -8,7 +8,7 @@ import SearchFiltersPanel from '@/components/marketplace/SearchFilters';
 
 const ITEMS_PER_PAGE = 12;
 
-export default function AnnunciPage() {
+export default function ListingsPage() {
   const [filters, setFilters] = useState<SearchFilters>({});
   const [page, setPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);

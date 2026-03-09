@@ -25,7 +25,7 @@ export default function Header() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            EscortItalia
+            Lvvd
           </span>
         </Link>
 
@@ -34,7 +34,7 @@ export default function Header() {
           onSubmit={(e) => {
             e.preventDefault();
             if (searchQuery.trim())
-              window.location.href = `/annunci?q=${encodeURIComponent(searchQuery)}`;
+              window.location.href = `/listings?q=${encodeURIComponent(searchQuery)}`;
           }}
           className="hidden md:flex flex-1 max-w-lg items-center gap-2"
         >
@@ -73,7 +73,7 @@ export default function Header() {
           >
             Sign in
           </Link>
-          <Link href="/registrati" className="btn-accent text-sm px-4 py-2">
+          <Link href="/register" className="btn-accent text-sm px-4 py-2">
             Post an ad
           </Link>
           {/* Hamburger */}
@@ -103,7 +103,7 @@ export default function Header() {
           style={{ maxWidth: 1400, margin: '0 auto' }}
         >
           <Link
-            href="/annunci"
+            href="/listings"
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white whitespace-nowrap rounded-lg transition-colors"
             style={{ ':hover': { background: 'var(--bg-elevated)' } } as React.CSSProperties}
           >
@@ -112,7 +112,7 @@ export default function Header() {
           {MOCK_CATEGORIES.map((cat: typeof MOCK_CATEGORIES[0]) => (
             <Link
               key={cat.id}
-              href={`/annunci?categoria=${cat.slug}`}
+              href={`/listings?categoria=${cat.slug}`}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-white whitespace-nowrap rounded-lg transition-colors"
             >
               <span>{cat.icon}</span>
@@ -157,7 +157,7 @@ export default function Header() {
             {MOCK_CATEGORIES.map((cat: typeof MOCK_CATEGORIES[0]) => (
               <Link
                 key={cat.id}
-                href={`/annunci?categoria=${cat.slug}`}
+                href={`/listings?categoria=${cat.slug}`}
                 onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 rounded-lg"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
@@ -172,7 +172,7 @@ export default function Header() {
             <Link href="/login" className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
               Sign in
             </Link>
-            <Link href="/registrati" className="btn-accent text-sm px-4 py-2 flex-1 text-center">
+            <Link href="/register" className="btn-accent text-sm px-4 py-2 flex-1 text-center">
               Sign up
             </Link>
           </div>

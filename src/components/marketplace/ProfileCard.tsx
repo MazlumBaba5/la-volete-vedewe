@@ -12,7 +12,7 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
 
   return (
     <Link
-      href={`/profilo/${profile.slug}`}
+      href={`/profile/${profile.slug}`}
       className="profile-card group relative block rounded-xl overflow-hidden"
       style={{
         background: 'var(--bg-card)',
@@ -143,7 +143,7 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
           className="mt-3 w-full btn-accent text-xs py-2 text-center"
           style={{ fontSize: '0.8rem' }}
         >
-          Vedi profilo →
+          View profile →
         </div>
       </div>
     </Link>

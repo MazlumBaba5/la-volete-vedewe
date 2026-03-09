@@ -140,7 +140,7 @@ export default function ContactModal({ profile, onClose }: Props) {
                 Sign in
               </a>
               <a
-                href="/registrati"
+                href="/register"
                 className="btn-ghost flex-1 text-center text-sm py-2"
               >
                 Sign up

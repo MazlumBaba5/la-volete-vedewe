@@ -11,8 +11,8 @@ export default function HeroSection() {
   const handleSearch = () => {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
-    if (city) params.set('citta', city);
-    window.location.href = `/annunci?${params.toString()}`;
+    if (city) params.set('city', city);
+    window.location.href = `/listings?${params.toString()}`;
   };
 
   return (
@@ -124,7 +124,7 @@ export default function HeroSection() {
           {MOCK_CITIES.slice(0, 6).map((c: typeof MOCK_CITIES[0]) => (
             <Link
               key={c.id}
-              href={`/annunci?citta=${encodeURIComponent(c.name)}`}
+              href={`/listings?city=${encodeURIComponent(c.name)}`}
               className="text-xs px-3 py-1.5 rounded-full transition-all"
               style={{
                 background: 'rgba(255,255,255,0.06)',

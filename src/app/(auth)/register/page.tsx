@@ -188,7 +188,7 @@ export default function RegisterPage() {
                 />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   I agree to the{' '}
-                  <Link href="/termini" className="underline" style={{ color: 'var(--accent)' }}>
+                  <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>
                     Terms of Service
                   </Link>{' '}
                   and the{' '}

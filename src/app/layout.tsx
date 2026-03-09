@@ -3,8 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'EscortItalia – Adult Listings Across Italy',
-    template: '%s | EscortItalia',
+    default: 'Lvvd – Listings Across Italy',
+    template: '%s | Lvvd',
   },
   description:
     'The largest adult listings portal in Italy. Find companions, massage professionals and more in your city.',

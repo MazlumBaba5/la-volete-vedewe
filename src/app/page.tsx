@@ -28,7 +28,7 @@ export default function Home() {
               Featured <span>profiles</span>
             </h2>
             <Link
-              href="/annunci?tier=diamond"
+              href="/listings?tier=diamond"
               className="text-sm font-medium transition-colors"
               style={{ color: 'var(--accent)' }}
             >
@@ -54,7 +54,7 @@ export default function Home() {
               New <span>listings</span>
             </h2>
             <Link
-              href="/annunci"
+              href="/listings"
               className="text-sm font-medium transition-colors"
               style={{ color: 'var(--accent)' }}
             >
@@ -85,7 +85,7 @@ export default function Home() {
               {MOCK_CITIES.map((city) => (
                 <Link
                   key={city.id}
-                  href={`/annunci?citta=${encodeURIComponent(city.name)}`}
+                  href={`/listings?city=${encodeURIComponent(city.name)}`}
                   className="flex items-center justify-between px-4 py-3 rounded-xl transition-all group"
                   style={{
                     background: 'var(--bg-elevated)',
@@ -129,10 +129,10 @@ export default function Home() {
               Upgrade to Diamond or Premium for maximum visibility.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/registrati" className="btn-accent px-8 py-3">
+              <Link href="/register" className="btn-accent px-8 py-3">
                 Post for free
               </Link>
-              <Link href="/tariffe" className="btn-outline px-8 py-3">
+              <Link href="/pricing" className="btn-outline px-8 py-3">
                 See pricing
               </Link>
             </div>
