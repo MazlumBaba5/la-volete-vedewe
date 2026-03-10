@@ -7,6 +7,3 @@ interface Props {
 export default function ProfileRedirect({ params }: Props) {
   redirect(`/profile/${params.slug}`);
 }
-
-  return <ProfileDetail profile={profile} related={related} />;
-}

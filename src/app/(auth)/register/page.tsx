@@ -2,10 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 type Role = 'guest' | 'advisor';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [role, setRole] = useState<Role>('advisor');
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
@@ -19,6 +22,7 @@ export default function RegisterPage() {
     agreeAge: false,
   });
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
   const update = (key: keyof typeof form, value: string | boolean) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -31,9 +35,44 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    setSuccess(true);
+    setError('');
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+          role,
+          name: form.name,
+          city: form.city,
+          phone: form.phone,
+        }),
+      })
+
+      const json = await res.json()
+      if (!res.ok || json?.error) {
+        setError(json?.error ?? 'Registration failed. Please try again.')
+      } else {
+        // Sign in the user to establish session
+        const supabase = createClient()
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password,
+        })
+        if (signInError) {
+          // Sign-in failed – show success so user can log in manually
+          setSuccess(true)
+        } else {
+          // Auto-redirect based on role
+          router.push(role === 'advisor' ? '/advisor/dashboard' : '/guest/dashboard')
+        }
+      }
+    } catch {
+      setError('Network error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   };
 
   if (success) {
@@ -50,7 +89,10 @@ export default function RegisterPage() {
               ? 'Your profile has been created. You can now access your dashboard and post your listing.'
               : 'Account created successfully. You can now browse all listings.'}
           </p>
-          <Link href="/advisor/dashboard" className="btn-accent w-full justify-center py-3 text-sm block">
+          <Link
+            href={role === 'advisor' ? '/advisor/dashboard' : '/guest/dashboard'}
+            className="btn-accent w-full justify-center py-3 text-sm block"
+          >
             Go to dashboard
           </Link>
           <Link href="/" className="btn-ghost w-full justify-center py-2.5 text-sm block">
@@ -207,6 +249,15 @@ export default function RegisterPage() {
             >
               {role === 'advisor' ? 'Next →' : loading ? 'Creating account…' : 'Create account'}
             </button>
+
+            {error && role === 'guest' && (
+              <p
+                className="text-xs text-center px-3 py-2 rounded-lg"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}
+              >
+                {error}
+              </p>
+            )}
           </form>
         )}
 
@@ -286,6 +337,15 @@ export default function RegisterPage() {
                 {loading ? 'Creating account…' : 'Complete registration'}
               </button>
             </div>
+
+            {error && (
+              <p
+                className="text-xs text-center px-3 py-2 rounded-lg"
+                style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}
+              >
+                {error}
+              </p>
+            )}
           </form>
         )}
 

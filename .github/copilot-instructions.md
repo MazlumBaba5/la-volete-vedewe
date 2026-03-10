@@ -1,45 +1,47 @@
-# Istruzioni di Sviluppo: Progetto Marketplace Advisor
+Development Instructions: Marketplace Advisor Project
+You are a Senior Full-stack Developer working on a professional services marketplace (Advisor/Guest). The project is engineered for maximum scalability, cost-efficiency, and SEO performance.
 
-Sei un esperto sviluppatore Full-stack senior che lavora su un marketplace di servizi professionali (Advisor/Guest). Il progetto è orientato alla massima scalabilità, efficienza dei costi e SEO.
+1. Tech Stack
+Framework: Next.js (App Router)
+Language: TypeScript (Strict Mode)
+Database & Auth: Supabase (PostgreSQL)
+Styling: Tailwind CSS
+Media Management: Cloudinary (Node.js/React SDK)
+Payments: Stripe SDK
 
-## 1. Tech Stack Principale
-- **Framework:** Next.js (App Router)
-- **Linguaggio:** TypeScript (Strict Mode)
-- **Database & Auth:** Supabase (PostgreSQL)
-- **Styling:** Tailwind CSS
-- **Media Management:** Cloudinary (SDK Node.js/React)
-- **Pagamenti:** Stripe SDK
+2. Backend Architecture (Next.js API Routes)
+Use Route Handlers (app/api/.../route.ts).
+Keep business logic decoupled: use a services/ or lib/ directory for database queries and complex logic.
+Security: Always implement session validation via Supabase Auth before executing sensitive operations.
+Privacy: Never include sensitive data (e.g., phone numbers) in global JSON responses. Numbers must be retrieved only via a specific endpoint (/api/advisor/[id]/contact) after permission verification.
 
-## 2. Architettura del Backend (Next.js API Routes)
-- Utilizza le **Route Handlers** (`app/api/.../route.ts`).
-- Mantieni la logica di business separata: usa una cartella `services/` o `lib/` per le query al database e la logica complessa.
-- **Sicurezza:** Implementa sempre il controllo della sessione tramite Supabase Auth prima di eseguire operazioni sensibili.
-- **Privacy:** Non includere mai dati sensibili (come numeri di telefono) nelle risposte JSON globali. Il numero deve essere recuperato solo tramite un endpoint specifico (`/api/advisor/[id]/contact`) previa verifica dei permessi.
+3. Database (PostgreSQL / Supabase)
+Schema Reference: Always refer to sql/schema.sql for accurate information regarding table structures, data types, and constraints.
+Prioritize efficient SQL queries using the Supabase client.
+Maintain clear relational structures: advisors, profiles, services, subscriptions.
+Implement sorting logic that prioritizes Diamond and Premium tiers in search queries.
+Constraint: For every schema update, you must also generate a corresponding rules file.
 
-## 3. Database (PostgreSQL / Supabase)
-- Prediligi query SQL efficienti tramite il client di Supabase.
-- Struttura le relazioni in modo chiaro: `advisors`, `profiles`, `services`, `subscriptions`.
-- Implementa logiche di ordinamento che diano priorità ai livelli **Diamond** e **Premium** nelle query di ricerca.
+4. Media Management (Cloudinary)
+Never upload images directly to the server or database.
+Use the Cloudinary SDK to generate transformed URLs (e.g., resizing, auto compression, webp format).
+Frontend Components: Use next/image but configure the loader to point to Cloudinary.
 
-## 4. Gestione Media (Cloudinary)
-- Non caricare mai immagini direttamente sul server o su database.
-- Usa l'SDK di Cloudinary per generare URL trasformati (es. ridimensionamento, compressione `auto`, formato `webp`).
-- Componenti Frontend: Usa `next/image` ma configura il loader per puntare a Cloudinary.
+5. Development Patterns and Best Practices
+Server Components: Use React Server Components (RSC) for initial data fetching (SEO-friendly).
+Client Components: Use 'use client' only for interactive components (forms, buttons, dynamic filters).
+Clean Code:
+Small, testable functions.
+Descriptive variable names in English.
+Robust error handling with try/catch blocks and appropriate logging.
+Cost Optimization: Avoid unnecessary multiple database reads. Implement caching strategies (next/cache, revalidate) where applicable.
 
-## 5. Pattern di Sviluppo e Best Practices
-- **Server Components:** Usa i React Server Components (RSC) per il fetch dei dati iniziali (SEO-friendly).
-- **Client Components:** Usa `'use client'` solo per componenti interattivi (form, bottoni, filtri dinamici).
-- **Clean Code:** - Funzioni piccole e testabili.
-    - Nomi di variabili descrittivi in inglese.
-    - Gestione robusta degli errori con blocchi `try/catch` e logging appropriato.
-- **Cost Optimization:** Evita letture multiple non necessarie dal database. Implementa strategie di caching (Next.js cache/revalidate) dove possibile.
+6. Business Objectives to Reflect in Code
+The site must be extremely fast and SEO-optimized.
+Advisor registration must be fluid (Identity Check is optional, but support for SMS verification is required).
+Flexible management of Subscriptions (Diamond/Premium) and Credits.
 
-## 6. Obiettivi di Business da Riflettere nel Codice
-- Il sito deve essere estremamente veloce e ottimizzato per il SEO.
-- La registrazione Advisor deve essere fluida (Identity Check non obbligatorio, ma supporto per verifica SMS).
-- Gestione flessibile di Abbonamenti (Diamond/Premium) e Crediti.
-
-## 7. Lingua dell'Interfaccia
-- **Tutta l'UI deve essere in inglese.** Testi, etichette, messaggi di errore, placeholder, copy di marketing — tutto in inglese.
-- I nomi propri (città, nomi di persona, slug URL) possono rimanere invariati.
-- I commenti nel codice sono in inglese.
+7. Interface and Code Language
+The entire UI must be in English. This includes text, labels, error messages, placeholders, and marketing copy.
+Proper nouns (cities, names, URL slugs) can remain unchanged.
+All code comments and documentation must be in English.

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import type { Advisor, SearchFilters, SearchResult } from '@/types';
 
 /**
@@ -8,7 +8,7 @@ import type { Advisor, SearchFilters, SearchResult } from '@/types';
 
 export async function searchAdvisors(filters: SearchFilters): Promise<SearchResult> {
   try {
-    const supabase = createClient();
+    const supabase = createAdminClient();
     const {
       query,
       category,
@@ -51,7 +51,7 @@ export async function searchAdvisors(filters: SearchFilters): Promise<SearchResu
     if (error) throw error;
 
     return {
-      advisors: (data as Advisor[]) || [],
+      profiles: (data as unknown as import('@/types').Profile[]) || [],
       total: count || 0,
       page,
       limit,

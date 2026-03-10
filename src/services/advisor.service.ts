@@ -1,37 +1,81 @@
 // src/services/advisor.service.ts
-import { createClient } from '@/lib/supabase/server'
-import type { Profile, Category, City } from '@/types'
+import { createAdminClient } from '@/lib/supabase/server'
+import type { Profile, ProfilePhoto, Category, City } from '@/types'
 
+// Selects advisor columns + their media via the FK relationship.
+// PostgREST resolves advisor_media automatically via the FK on advisor_id.
 const PUBLIC_COLUMNS = `
-  id, slug, name, age, city, district, nationality,
-  languages, description, photos, services, attributes,
-  rates, availability, is_verified, is_online,
-  subscription_level, views, created_at, updated_at
+  id,
+  profile_id,
+  slug,
+  name,
+  age,
+  city,
+  region,
+  country,
+  languages,
+  bio,
+  services_tags,
+  availability,
+  is_verified,
+  is_featured,
+  views_count,
+  created_at,
+  updated_at,
+  advisor_media (
+    id,
+    url,
+    is_cover,
+    sort_order
+  )
 `
 
 const TIER_ORDER: Record<string, number> = { diamond: 0, premium: 1, free: 2 }
 
-function mapRow(row: Record<string, unknown>): Profile {
+interface MediaRow {
+  id: string
+  url: string
+  is_cover: boolean
+  sort_order: number
+}
+
+function mapRow(row: Record<string, unknown>, subscriptionTier?: string): Profile {
+  const mediaRows = ((row.advisor_media as MediaRow[]) ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99))
+
+  const photos: ProfilePhoto[] = mediaRows.map((m, idx) => ({
+    id: m.id,
+    url: m.url,
+    isMain: m.is_cover || idx === 0,
+  }))
+
   return {
-    id: row.id as string,
+    id: row.profile_id as string,
     slug: row.slug as string,
     name: row.name as string,
-    age: row.age as number,
+    age: (row.age as number) || 18,
     city: row.city as string,
-    district: row.district as string | undefined,
-    nationality: row.nationality as string,
-    languages: row.languages as string[],
-    phone: row.phone as string,
-    description: row.description as string,
-    photos: row.photos as Profile['photos'],
-    services: row.services as string[],
-    attributes: row.attributes as Profile['attributes'],
-    rates: row.rates as Profile['rates'],
-    availability: row.availability as Profile['availability'],
-    isVerified: row.is_verified as boolean,
-    isOnline: row.is_online as boolean,
-    subscriptionLevel: row.subscription_level as Profile['subscriptionLevel'],
-    views: row.views as number,
+    district: row.region as string | undefined,
+    nationality: (row.country as string) || 'NL',
+    languages: (row.languages as string[]) || [],
+    phone: '',
+    description: (row.bio as string) || '',
+    photos,
+    services: (row.services_tags as string[]) || [],
+    attributes: {
+      height: 0,
+      weight: 0,
+      hair: '',
+      eyes: '',
+      ethnicity: '',
+    },
+    rates: [],
+    availability: (row.availability as Profile['availability']) || 'available',
+    isVerified: (row.is_verified as boolean) || false,
+    isOnline: false,
+    subscriptionLevel: (subscriptionTier as Profile['subscriptionLevel']) || 'free',
+    views: (row.views_count as number) || 0,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
@@ -43,40 +87,110 @@ function sortByTier(profiles: Profile[]): Profile[] {
   )
 }
 
+/** Fetch active subscription tiers for a set of advisor rows and enrich them. */
+async function enrichWithSubscriptions(
+  supabase: ReturnType<typeof createAdminClient>,
+  rows: Record<string, unknown>[]
+): Promise<Profile[]> {
+  if (rows.length === 0) return []
+  const ids = rows.map((r) => r.id as string)
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('advisor_id, tier')
+    .in('advisor_id', ids)
+    .eq('status', 'active')
+    .in('tier', ['premium', 'diamond'])
+  const tierMap = new Map<string, string>(
+    (subs ?? []).map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
+  )
+  return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
+}
+
 export async function getAllProfiles(): Promise<Profile[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
-    .from('profiles')
+    .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .order('views', { ascending: false })
+    .eq('status', 'active')
+    .order('views_count', { ascending: false })
 
   if (error) { console.error('[getAllProfiles]', error.message); return [] }
-  return sortByTier((data as Record<string, unknown>[]).map(mapRow))
+  const profiles = await enrichWithSubscriptions(supabase, data as unknown as Record<string, unknown>[])
+  return sortByTier(profiles)
 }
 
 export async function getProfileBySlug(slug: string): Promise<Profile | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data, error } = await supabase
-    .from('profiles')
+    .from('advisors')
     .select(PUBLIC_COLUMNS)
     .eq('slug', slug)
     .single()
 
   if (error) { console.error('[getProfileBySlug]', error.message); return null }
-  return mapRow(data as Record<string, unknown>)
+  const row = data as unknown as Record<string, unknown>
+  const { data: subs } = await supabase
+    .from('subscriptions')
+    .select('tier')
+    .eq('advisor_id', row.id as string)
+    .eq('status', 'active')
+    .in('tier', ['premium', 'diamond'])
+    .maybeSingle()
+  return mapRow(row, subs?.tier)
 }
 
 export async function getFeaturedProfiles(): Promise<Profile[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
+
+  // Advisors with an active paid subscription — these are "featured"
+  const { data: paidSubs } = await supabase
+    .from('subscriptions')
+    .select('advisor_id, tier')
+    .eq('status', 'active')
+    .in('tier', ['premium', 'diamond'])
+
+  if (paidSubs && paidSubs.length > 0) {
+    const paidIds = paidSubs.map((s: { advisor_id: string }) => s.advisor_id)
+    const tierMap = new Map<string, string>(
+      paidSubs.map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
+    )
+    const { data, error } = await supabase
+      .from('advisors')
+      .select(PUBLIC_COLUMNS)
+      .in('id', paidIds)
+      .eq('status', 'active')
+      .order('views_count', { ascending: false })
+      .limit(12)
+    if (error) { console.error('[getFeaturedProfiles]', error.message); return [] }
+    const profiles = (data as unknown as Record<string, unknown>[]).map((r) =>
+      mapRow(r, tierMap.get(r.id as string))
+    )
+    return sortByTier(profiles)
+  }
+
+  // Fallback: most-viewed active advisors when no paid subscriptions exist yet
   const { data, error } = await supabase
-    .from('profiles')
+    .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .in('subscription_level', ['diamond', 'premium'])
-    .order('views', { ascending: false })
-    .limit(6)
+    .eq('status', 'active')
+    .order('views_count', { ascending: false })
+    .limit(12)
 
   if (error) { console.error('[getFeaturedProfiles]', error.message); return [] }
-  return sortByTier((data as Record<string, unknown>[]).map(mapRow))
+  return (data as unknown as Record<string, unknown>[]).map((r) => mapRow(r))
+}
+
+export async function getRecentProfiles(): Promise<Profile[]> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('advisors')
+    .select(PUBLIC_COLUMNS)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(12)
+
+  if (error) { console.error('[getRecentProfiles]', error.message); return [] }
+  return enrichWithSubscriptions(supabase, data as unknown as Record<string, unknown>[])
 }
 
 export async function searchProfiles(filters: {
@@ -84,63 +198,86 @@ export async function searchProfiles(filters: {
   query?: string
   minAge?: number
   maxAge?: number
-  minPrice?: number
-  maxPrice?: number
-  subscriptionLevel?: string
   verified?: boolean
-  isOnline?: boolean
   sortBy?: string
 }): Promise<Profile[]> {
-  const supabase = await createClient()
-  let q = supabase.from('profiles').select(PUBLIC_COLUMNS)
+  const supabase = createAdminClient()
+  let q = supabase
+    .from('advisors')
+    .select(PUBLIC_COLUMNS)
+    .eq('status', 'active')
 
   if (filters.city) q = q.eq('city', filters.city)
-  if (filters.subscriptionLevel) q = q.eq('subscription_level', filters.subscriptionLevel)
   if (filters.verified) q = q.eq('is_verified', true)
-  if (filters.isOnline) q = q.eq('is_online', true)
   if (filters.minAge) q = q.gte('age', filters.minAge)
   if (filters.maxAge) q = q.lte('age', filters.maxAge)
   if (filters.query) {
-    q = q.or(`name.ilike.%${filters.query}%,city.ilike.%${filters.query}%,description.ilike.%${filters.query}%`)
+    q = q.or(
+      `name.ilike.%${filters.query}%,city.ilike.%${filters.query}%,bio.ilike.%${filters.query}%`
+    )
   }
 
   const { data, error } = await q
   if (error) { console.error('[searchProfiles]', error.message); return [] }
 
-  let result = (data as Record<string, unknown>[]).map(mapRow)
-
-  if (filters.minPrice) result = result.filter((p) => p.rates.some((r) => r.price >= filters.minPrice!))
-  if (filters.maxPrice) result = result.filter((p) => p.rates.some((r) => r.price <= filters.maxPrice!))
+  const result = await enrichWithSubscriptions(supabase, data as unknown as Record<string, unknown>[])
 
   result.sort((a, b) => {
     const tierDiff = (TIER_ORDER[a.subscriptionLevel] ?? 2) - (TIER_ORDER[b.subscriptionLevel] ?? 2)
     if (tierDiff !== 0) return tierDiff
-    switch (filters.sortBy) {
-      case 'popular': return b.views - a.views
-      case 'price_asc': return (a.rates[0]?.price ?? 0) - (b.rates[0]?.price ?? 0)
-      case 'price_desc': return (b.rates[0]?.price ?? 0) - (a.rates[0]?.price ?? 0)
-      default: return b.views - a.views
-    }
+    return b.views - a.views
   })
 
   return result
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('categories').select('*').order('count', { ascending: false })
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .order('count', { ascending: false })
   if (error) { console.error('[getCategories]', error.message); return [] }
   return data as Category[]
 }
 
+/**
+ * Compute city counts directly from the advisors table so the data is always
+ * fresh and never depends on a separately-maintained cities table.
+ */
 export async function getCities(): Promise<City[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('cities').select('*').order('count', { ascending: false })
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('advisors')
+    .select('city, region')
+    .eq('status', 'active')
+    .not('city', 'is', null)
+
   if (error) { console.error('[getCities]', error.message); return [] }
-  return data as City[]
+
+  const cityMap = new Map<string, { count: number; region: string }>()
+  for (const row of data as { city: string; region: string | null }[]) {
+    const city = row.city?.trim()
+    if (!city) continue
+    const existing = cityMap.get(city)
+    if (existing) {
+      existing.count++
+    } else {
+      cityMap.set(city, { count: 1, region: row.region ?? '' })
+    }
+  }
+
+  return Array.from(cityMap.entries())
+    .map(([name, { count, region }]) => ({
+      id: name.toLowerCase().replace(/\s+/g, '-'),
+      name,
+      count,
+      region,
+    }))
+    .sort((a, b) => b.count - a.count)
 }
 
 export async function incrementViews(slug: string): Promise<void> {
-  const supabase = await createClient()
-  await supabase.rpc('increment_profile_views', { profile_slug: slug })
+  const supabase = createAdminClient()
+  await supabase.rpc('increment_advisor_views', { advisor_slug: slug }).throwOnError()
 }

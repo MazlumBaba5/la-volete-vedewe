@@ -2,22 +2,43 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    // Mock auth
-    await new Promise((r) => setTimeout(r, 900));
-    setLoading(false);
-    // Demo: always show error since no real backend
-    setError('Demo: backend not connected. Use mock credentials demo@test.it / password');
+
+    try {
+      const supabase = createClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        setError(signInError.message);
+      } else {
+        // Determine redirect based on user role stored in metadata
+        const supabase2 = createClient();
+        const { data: { user } } = await supabase2.auth.getUser();
+        const role = user?.user_metadata?.role;
+        router.push(role === 'guest' ? '/guest/dashboard' : '/advisor/dashboard');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred');
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -116,7 +137,7 @@ export default function LoginPage() {
           <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
         </div>
 
-        {/* Social login (mock) */}
+        {/* Social login (not implemented) */}
         <div className="space-y-2">
           {[
             { icon: '🔵', label: 'Continue with Facebook' },
@@ -124,7 +145,7 @@ export default function LoginPage() {
           ].map((prov) => (
             <button
               key={prov.label}
-              onClick={() => setError('Demo: social login not available in demo mode')}
+              onClick={() => setError('Social login not available yet')}
               className="btn-ghost w-full justify-center text-sm py-2.5 flex items-center gap-2"
             >
               {prov.icon} {prov.label}

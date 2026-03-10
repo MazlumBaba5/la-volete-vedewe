@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { City } from '@/types'
 
 interface Props {
@@ -10,14 +11,15 @@ interface Props {
 }
 
 export default function HeroSection({ cities = [] }: Props) {
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [city, setCity] = useState('')
 
   const handleSearch = () => {
     const params = new URLSearchParams()
-    if (query) params.set('q', query)
+    if (query.trim()) params.set('q', query.trim())
     if (city) params.set('city', city)
-    window.location.href = `/listings?${params.toString()}`
+    router.push(`/listings?${params.toString()}`)
   }
 
   return (

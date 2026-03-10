@@ -47,10 +47,11 @@ function filterProfiles(profiles: Profile[], filters: SearchFilters): Profile[] 
 interface Props {
     initialProfiles: Profile[]
     cities: City[]
+    initialFilters?: SearchFilters
 }
 
-export default function ListingsClient({ initialProfiles, cities }: Props) {
-    const [filters, setFilters] = useState<SearchFilters>({})
+export default function ListingsClient({ initialProfiles, cities, initialFilters = {} }: Props) {
+    const [filters, setFilters] = useState<SearchFilters>(initialFilters)
     const [page, setPage] = useState(1)
     const [filtersOpen, setFiltersOpen] = useState(false)
 

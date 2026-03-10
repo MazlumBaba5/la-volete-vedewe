@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 import type { Subscription } from '@/types';
 
 /**
@@ -7,7 +7,7 @@ import type { Subscription } from '@/types';
 
 export async function getActiveSubscription(advisorId: string): Promise<Subscription | null> {
   try {
-    const supabase = createClient();
+    const supabase = createAdminClient();
 
     const { data, error } = await supabase
       .from('subscriptions')
@@ -31,7 +31,7 @@ export async function createSubscription(
   subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>,
 ): Promise<Subscription> {
   try {
-    const supabase = createClient();
+    const supabase = createAdminClient();
 
     const { data, error } = await supabase
       .from('subscriptions')

@@ -7,26 +7,27 @@ import { createClient } from '@/lib/supabase/server';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const supabase = createClient();
+    const { id } = await params
+    const supabase = await createClient();
 
-    // Verify user session
+    // Verify user is authenticated
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-    if (sessionError || !session) {
+    if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch advisor phone (sensitive data)
+    // Fetch advisor phone (sensitive data, requires auth)
     const { data, error } = await supabase
       .from('advisors')
       .select('id, phone')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {

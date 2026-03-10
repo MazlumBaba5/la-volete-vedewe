@@ -1,12 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { MOCK_CATEGORIES } from '@/lib/mock-data';
 
 export default function Header() {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [authLoaded, setAuthLoaded] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserRole(user?.user_metadata?.role ?? null);
+      setAuthLoaded(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserRole(session?.user?.user_metadata?.role ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/');
+    router.refresh();
+  }
+
+  const dashboardHref = userRole === 'advisor' ? '/advisor/dashboard' : '/guest/dashboard';
 
   return (
     <header style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
@@ -67,15 +93,36 @@ export default function Header() {
 
         {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href="/login"
-            className="hidden sm:inline-flex text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
-          >
-            Sign in
-          </Link>
-          <Link href="/register" className="btn-accent text-sm px-4 py-2">
-            Post an ad
-          </Link>
+          {authLoaded && (
+            userRole ? (
+              <>
+                <Link
+                  href={dashboardHref}
+                  className="hidden sm:inline-flex text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="hidden sm:inline-flex text-sm font-medium text-gray-400 hover:text-white transition-colors px-3 py-2"
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden sm:inline-flex text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
+                >
+                  Sign in
+                </Link>
+                <Link href="/register" className="btn-accent text-sm px-4 py-2">
+                  Post an ad
+                </Link>
+              </>
+            )
+          )}
           {/* Hamburger */}
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
@@ -169,12 +216,25 @@ export default function Header() {
           </div>
 
           <div className="flex gap-2 pt-1">
-            <Link href="/login" className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
-              Sign in
-            </Link>
-            <Link href="/register" className="btn-accent text-sm px-4 py-2 flex-1 text-center">
-              Sign up
-            </Link>
+            {userRole ? (
+              <>
+                <Link href={dashboardHref} onClick={() => setMobileOpen(false)} className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
+                  Dashboard
+                </Link>
+                <button onClick={handleSignOut} className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link href="/login" className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
+                  Sign in
+                </Link>
+                <Link href="/register" className="btn-accent text-sm px-4 py-2 flex-1 text-center">
+                  Sign up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -5,20 +5,16 @@ import Footer from '@/components/layout/Footer'
 import HeroSection from '@/components/marketplace/HeroSection'
 import CategorySection from '@/components/marketplace/CategorySection'
 import ProfileCard from '@/components/marketplace/ProfileCard'
-import { getFeaturedProfiles, getAllProfiles, getCities } from '@/services/advisor.service'
+import { getFeaturedProfiles, getRecentProfiles, getCities } from '@/services/advisor.service'
 
 export const revalidate = 60
 
 export default async function Home() {
-  const [featured, all, cities] = await Promise.all([
+  const [featured, recent, cities] = await Promise.all([
     getFeaturedProfiles(),
-    getAllProfiles(),
+    getRecentProfiles(),
     getCities(),
   ])
-
-  const recent = all
-    .filter((p) => p.subscriptionLevel !== 'diamond')
-    .slice(0, 6)
 
   return (
     <>
