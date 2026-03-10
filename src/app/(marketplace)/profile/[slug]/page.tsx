@@ -1,34 +1,35 @@
-import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import { MOCK_PROFILES } from '@/lib/mock-data';
-import ProfileDetail from './ProfileDetail';
+// src/app/(marketplace)/profile/[slug]/page.tsx
+import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
+import { getProfileBySlug, getAllProfiles } from '@/services/advisor.service'
+import ProfileDetail from './ProfileDetail'
 
 interface Props {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string }>
 }
 
 export async function generateStaticParams() {
-  return MOCK_PROFILES.map((p) => ({ slug: p.slug }));
+  const profiles = await getAllProfiles()
+  return profiles.map((p) => ({ slug: p.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { slug } = await params;
-  const profile = MOCK_PROFILES.find((p) => p.slug === slug);
-  if (!profile) return {};
+  const { slug } = await params
+  const profile = await getProfileBySlug(slug)
+  if (!profile) return {}
   return {
     title: `${profile.name}, ${profile.age} years old – ${profile.city}`,
-    description: profile.description.slice(0, 155),
-  };
+    description: profile.description?.slice(0, 155) ?? '',
+  }
 }
 
 export default async function ProfilePage({ params }: Props) {
-  const { slug } = await params;
-  const profile = MOCK_PROFILES.find((p) => p.slug === slug);
-  if (!profile) notFound();
+  const { slug } = await params
+  const profile = await getProfileBySlug(slug)
+  if (!profile) notFound()
 
-  const related = MOCK_PROFILES.filter(
-    (p) => p.id !== profile.id && p.city === profile.city
-  ).slice(0, 4);
+  const all = await getAllProfiles()
+  const related = all.filter((p) => p.id !== profile.id && p.city === profile.city).slice(0, 4)
 
-  return <ProfileDetail profile={profile} related={related} />;
+  return <ProfileDetail profile={profile} related={related} />
 }

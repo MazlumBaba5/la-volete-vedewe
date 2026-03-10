@@ -1,28 +1,32 @@
-'use client';
+'use client'
+// src/components/marketplace/SearchFilters.tsx
 
-import { type SearchFilters } from '@/types';
-import { MOCK_CITIES, AVAILABLE_SERVICES } from '@/lib/mock-data';
+import { type SearchFilters, type City } from '@/types'
+
+const AVAILABLE_SERVICES = [
+  'GFE', 'Escort', 'Dinner', 'Travel', 'Incall',
+  'Outcall', 'Massage', 'Erotic massage', 'Domination',
+  'Virtual', 'Webcam', 'Couples',
+]
 
 interface Props {
-  filters: SearchFilters;
-  onChange: (filters: SearchFilters) => void;
-  onClose?: () => void;
+  filters: SearchFilters
+  onChange: (filters: SearchFilters) => void
+  onClose?: () => void
+  cities?: City[]
 }
 
-export default function SearchFilters({ filters, onChange, onClose }: Props) {
-  const update = (partial: Partial<SearchFilters>) => onChange({ ...filters, ...partial });
+export default function SearchFilters({ filters, onChange, onClose, cities = [] }: Props) {
+  const update = (partial: Partial<SearchFilters>) => onChange({ ...filters, ...partial })
 
   return (
     <div className="space-y-6 text-sm">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-gray-200">Filters</h3>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => onChange({})}
-            className="text-xs"
-            style={{ color: 'var(--accent)' }}
-          >
+          <button onClick={() => onChange({})} className="text-xs" style={{ color: 'var(--accent)' }}>
             Reset all
           </button>
           {onClose && (
@@ -35,7 +39,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
         </div>
       </div>
 
-      {/* Città */}
+      {/* City */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">City</label>
         <select
@@ -44,7 +48,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
           className="input-dark"
         >
           <option value="">All Cities</option>
-          {MOCK_CITIES.map((c: typeof MOCK_CITIES[0]) => (
+          {cities.map((c) => (
             <option key={c.id} value={c.name}>
               {c.name} ({c.count})
             </option>
@@ -52,7 +56,7 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
         </select>
       </div>
 
-      {/* Età */}
+      {/* Age */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">
           Age:{' '}
@@ -61,28 +65,16 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
           </span>
         </label>
         <div className="flex gap-3">
-          <input
-            type="number"
-            min={18}
-            max={filters.maxAge ?? 60}
-            value={filters.minAge ?? 18}
+          <input type="number" min={18} max={filters.maxAge ?? 60} value={filters.minAge ?? 18}
             onChange={(e) => update({ minAge: Number(e.target.value) || undefined })}
-            className="input-dark"
-            placeholder="Da"
-          />
-          <input
-            type="number"
-            min={filters.minAge ?? 18}
-            max={99}
-            value={filters.maxAge ?? ''}
+            className="input-dark" placeholder="From" />
+          <input type="number" min={filters.minAge ?? 18} max={99} value={filters.maxAge ?? ''}
             onChange={(e) => update({ maxAge: Number(e.target.value) || undefined })}
-            className="input-dark"
-            placeholder="A"
-          />
+            className="input-dark" placeholder="To" />
         </div>
       </div>
 
-      {/* Prezzo */}
+      {/* Price */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">
           Price / hour:{' '}
@@ -91,22 +83,12 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
           </span>
         </label>
         <div className="flex gap-3">
-          <input
-            type="number"
-            min={0}
-            value={filters.minPrice ?? ''}
+          <input type="number" min={0} value={filters.minPrice ?? ''}
             onChange={(e) => update({ minPrice: Number(e.target.value) || undefined })}
-            className="input-dark"
-            placeholder="Min €"
-          />
-          <input
-            type="number"
-            min={0}
-            value={filters.maxPrice ?? ''}
+            className="input-dark" placeholder="Min €" />
+          <input type="number" min={0} value={filters.maxPrice ?? ''}
             onChange={(e) => update({ maxPrice: Number(e.target.value) || undefined })}
-            className="input-dark"
-            placeholder="Max €"
-          />
+            className="input-dark" placeholder="Max €" />
         </div>
       </div>
 
@@ -121,34 +103,28 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
             { value: 'free', label: 'Standard' },
           ].map((opt) => (
             <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="tier"
+              <input type="radio" name="tier"
                 checked={filters.subscriptionLevel === opt.value}
                 onChange={() => update({ subscriptionLevel: opt.value as SearchFilters['subscriptionLevel'] })}
-                className="accent-pink-500"
-              />
+                className="accent-pink-500" />
               <span className="text-gray-300">{opt.label}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {/* Servizi */}
+      {/* Services */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">Services</label>
         <div className="flex flex-wrap gap-2">
-          {AVAILABLE_SERVICES.map((svc: string) => {
-            const active = filters.services?.includes(svc);
+          {AVAILABLE_SERVICES.map((svc) => {
+            const active = filters.services?.includes(svc)
             return (
-              <button
-                key={svc}
+              <button key={svc}
                 onClick={() => {
-                  const current = filters.services ?? [];
-                  const next = active
-                    ? current.filter((s: string) => s !== svc)
-                    : [...current, svc];
-                  update({ services: next.length ? next : undefined });
+                  const current = filters.services ?? []
+                  const next = active ? current.filter((s) => s !== svc) : [...current, svc]
+                  update({ services: next.length ? next : undefined })
                 }}
                 className="text-xs px-2.5 py-1 rounded-full border transition-all"
                 style={{
@@ -159,35 +135,30 @@ export default function SearchFilters({ filters, onChange, onClose }: Props) {
               >
                 {svc}
               </button>
-            );
+            )
           })}
         </div>
       </div>
 
-      {/* Checkbox options */}
+      {/* Checkboxes */}
       <div className="space-y-3">
         <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!filters.verified}
+          <input type="checkbox" checked={!!filters.verified}
             onChange={(e) => update({ verified: e.target.checked || undefined })}
-            className="accent-pink-500 w-4 h-4"
-          />
+            className="accent-pink-500 w-4 h-4" />
           <span className="text-gray-300">Verified profiles only ✓</span>
         </label>
         <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={!!filters.isOnline}
+          <input type="checkbox" checked={!!filters.isOnline}
             onChange={(e) => update({ isOnline: e.target.checked || undefined })}
-            className="accent-pink-500 w-4 h-4"
-          />
+            className="accent-pink-500 w-4 h-4" />
           <span className="text-gray-300">
             Online only{' '}
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 ml-1" />
           </span>
         </label>
       </div>
+
     </div>
-  );
+  )
 }
