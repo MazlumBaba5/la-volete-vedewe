@@ -22,7 +22,7 @@ export default function Footer() {
               Lvvd
             </span>
             <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              The most-visited adult personal ads portal in Italy.
+              The most-visited adult personal ads portal in Netherlands.
               <br />
               All content is published by adult users.
             </p>

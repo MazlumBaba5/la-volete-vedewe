@@ -3,12 +3,12 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Lvvd – Listings Across Italy',
+    default: 'Lvvd – Listings Across Netherlands',
     template: '%s | Lvvd',
   },
   description:
-    'The largest adult listings portal in Italy. Find companions, massage professionals and more in your city.',
-  keywords: ['listings', 'companions', 'escort italy', 'massage'],
+    'The largest adult listings portal in Netherlands. Find companions, massage professionals and more in your city.',
+  keywords: ['listings', 'companions', 'escort Netherlands', 'massage'],
 };
 
 export default function RootLayout({

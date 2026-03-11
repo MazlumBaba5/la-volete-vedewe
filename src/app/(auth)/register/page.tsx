@@ -119,7 +119,7 @@ export default function RegisterPage() {
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-black text-white">Create your account</h1>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            Join the largest community in Italy
+            Join the largest community in Netherlands
           </p>
         </div>
 
