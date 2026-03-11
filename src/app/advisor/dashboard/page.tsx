@@ -63,6 +63,31 @@ type ProfileForm = {
 }
 
 type TabId = 'overview' | 'profile' | 'subscription' | 'settings'
+type BillingTier = 'free' | 'premium' | 'diamond'
+type CheckoutPlan = BillingTier | 'starter' | 'boost' | 'power'
+
+type BillingSummary = {
+  advisorId: string
+  currentTier: BillingTier
+  subscription: {
+    tier: BillingTier
+    status: string
+    stripe_customer_id: string | null
+    current_period_end: string | null
+    cancel_at_period_end: boolean | null
+    updated_at: string
+  } | null
+  wallet: {
+    balance: number
+    updatedAt: string | null
+  }
+  recentTransactions: Array<{
+    id: string
+    amount: number
+    description: string | null
+    createdAt: string
+  }>
+}
 
 // Helpers
 function profileCompleteness(advisor: AdvisorRow): number {
@@ -99,6 +124,16 @@ function rowToForm(r: AdvisorRow): ProfileForm {
   }
 }
 
+function formatShortDate(value: string | null) {
+  if (!value) return null
+
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value))
+}
+
 // Component
 export default function DashboardPage() {
   const router = useRouter()
@@ -107,6 +142,10 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [photos, setPhotos] = useState<UploadedPhoto[]>([])
+  const [billing, setBilling] = useState<BillingSummary | null>(null)
+  const [billingLoading, setBillingLoading] = useState(true)
+  const [billingBusy, setBillingBusy] = useState<string | null>(null)
+  const [billingMsg, setBillingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', city: '', region: '', age: null, gender: 'female',
@@ -126,6 +165,26 @@ export default function DashboardPage() {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const requestedTab = searchParams.get('tab')
+    if (requestedTab === 'overview' || requestedTab === 'profile' || requestedTab === 'subscription' || requestedTab === 'settings') {
+      setActiveTab(requestedTab)
+    }
+
+    const billingStatus = searchParams.get('billing')
+    if (billingStatus === 'success') {
+      setBillingMsg({ type: 'success', text: 'Stripe checkout completed successfully.' })
+    } else if (billingStatus === 'cancel') {
+      setBillingMsg({ type: 'error', text: 'Stripe checkout was canceled before completion.' })
+    }
+
+    if (billingStatus) {
+      const target = requestedTab ? `/advisor/dashboard?tab=${requestedTab}` : '/advisor/dashboard'
+      router.replace(target, { scroll: false })
+    }
+  }, [router])
 
   async function loadData() {
     const supabase = createClient()
@@ -160,11 +219,33 @@ export default function DashboardPage() {
           isCover: m.is_cover,
         })))
       }
+
+      await loadBillingData()
     } else {
       const json = await res.json().catch(() => ({}))
       console.error('[dashboard] load error:', json.error ?? res.status)
+      setBillingLoading(false)
     }
     setLoading(false)
+  }
+
+  async function loadBillingData() {
+    setBillingLoading(true)
+    try {
+      const res = await fetch('/api/advisor/billing')
+      const json = await res.json()
+
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to load billing summary')
+      }
+
+      setBilling(json as BillingSummary)
+    } catch (error) {
+      console.error('[dashboard] billing load error:', error)
+      setBillingMsg({ type: 'error', text: 'Unable to load billing data right now.' })
+    } finally {
+      setBillingLoading(false)
+    }
   }
 
   function upd<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
@@ -219,6 +300,54 @@ export default function DashboardPage() {
       }
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  async function handleCheckout(kind: 'subscription' | 'credits', plan: CheckoutPlan) {
+    setBillingBusy(`${kind}:${plan}`)
+    setBillingMsg(null)
+
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, plan }),
+      })
+
+      const json = await res.json()
+      if (!res.ok || !json.url) {
+        throw new Error(json.error ?? 'Unable to start Stripe checkout')
+      }
+
+      window.location.href = json.url as string
+    } catch (error) {
+      setBillingMsg({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to start Stripe checkout',
+      })
+      setBillingBusy(null)
+    }
+  }
+
+  async function handleOpenBillingPortal() {
+    setBillingBusy('portal')
+    setBillingMsg(null)
+
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST' })
+      const json = await res.json()
+
+      if (!res.ok || !json.url) {
+        throw new Error(json.error ?? 'Unable to open Stripe billing portal')
+      }
+
+      window.location.href = json.url as string
+    } catch (error) {
+      setBillingMsg({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to open Stripe billing portal',
+      })
+      setBillingBusy(null)
     }
   }
 
@@ -564,58 +693,216 @@ export default function DashboardPage() {
 
           {/* ── SUBSCRIPTION ── */}
           {activeTab === 'subscription' && (
-            <div className="space-y-6 max-w-3xl">
+            <div className="space-y-6 max-w-5xl">
               <h1 className="text-2xl font-black text-white">Subscription</h1>
+              {billingMsg && (
+                <div className="text-sm px-4 py-3 rounded-xl"
+                  style={{
+                    background: billingMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    border: `1px solid ${billingMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                    color: billingMsg.type === 'success' ? '#86efac' : '#fca5a5',
+                  }}>
+                  {billingMsg.text}
+                </div>
+              )}
+
+              <div className="grid lg:grid-cols-[1.5fr_1fr] gap-6">
+                <div className="rounded-xl p-6 space-y-3" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Current access</p>
+                      <h2 className="text-2xl font-black text-white mt-2">
+                        {billingLoading ? 'Loading...' : billing?.currentTier === 'diamond' ? 'Diamond' : billing?.currentTier === 'premium' ? 'Premium' : 'Standard'}
+                      </h2>
+                      <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>
+                        {billing?.subscription?.current_period_end
+                          ? `Renews on ${formatShortDate(billing.subscription.current_period_end)}`
+                          : 'No active recurring subscription yet.'}
+                      </p>
+                    </div>
+                    {billing?.subscription?.stripe_customer_id && (
+                      <button
+                        type="button"
+                        onClick={handleOpenBillingPortal}
+                        disabled={billingBusy === 'portal'}
+                        className="btn-outline text-sm px-4 py-2"
+                      >
+                        {billingBusy === 'portal' ? 'Opening...' : 'Manage billing'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4 pt-2">
+                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Credit balance</p>
+                      <p className="text-3xl font-black text-white mt-2">{billingLoading ? '...' : billing?.wallet.balance ?? 0}</p>
+                      <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>
+                        {billing?.wallet.updatedAt ? `Updated on ${formatShortDate(billing.wallet.updatedAt)}` : 'No credit purchases yet.'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                      <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Subscription status</p>
+                      <p className="text-xl font-bold text-white mt-2">
+                        {billingLoading ? 'Loading...' : billing?.subscription?.status ?? 'inactive'}
+                      </p>
+                      <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>
+                        {billing?.subscription?.cancel_at_period_end
+                          ? 'Cancellation is scheduled at the end of the current billing cycle.'
+                          : 'Payments and renewals are handled securely by Stripe.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl p-6 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h2 className="text-lg font-bold text-white">Recent credit activity</h2>
+                  {billingLoading ? (
+                    <p className="text-sm" style={{ color: '#d1d5db' }}>Loading billing activity...</p>
+                  ) : billing?.recentTransactions.length ? (
+                    <div className="space-y-3">
+                      {billing.recentTransactions.map((transaction) => (
+                        <div key={transaction.id} className="rounded-lg p-3"
+                          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                          <div className="flex items-center justify-between gap-4">
+                            <span className="text-sm text-white">{transaction.description ?? 'Credit purchase'}</span>
+                            <span className="text-sm font-semibold" style={{ color: '#86efac' }}>+{transaction.amount}</span>
+                          </div>
+                          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                            {formatShortDate(transaction.createdAt)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: '#d1d5db' }}>
+                      Credit purchases will appear here after the first successful checkout.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid sm:grid-cols-3 gap-4">
                 {([
                   {
                     level: 'free', name: 'Standard', price: 'Free', period: '',
                     features: ['1 photo', 'Base position', 'Visible in results', 'No badge'],
-                    cta: 'Current plan', current: true, highlight: false,
+                    cta: 'Current plan', highlight: false,
                   },
                   {
                     level: 'premium', name: 'Premium', price: 'EUR 29', period: '/ mo',
                     features: ['Up to 5 photos', 'Priority position', 'Premium badge', 'Advanced stats'],
-                    cta: 'Upgrade to Premium', current: false, highlight: false,
+                    cta: 'Upgrade to Premium', highlight: false,
                   },
                   {
                     level: 'diamond', name: 'Diamond', price: 'EUR 59', period: '/ mo',
                     features: ['Unlimited photos', 'Top of results', 'Diamond badge', 'Full stats', 'Priority support'],
-                    cta: 'Upgrade to Diamond', current: false, highlight: true,
+                    cta: 'Upgrade to Diamond', highlight: true,
                   },
-                ] as const).map((plan) => (
-                  <div key={plan.level} className="rounded-xl p-5 flex flex-col gap-4"
-                    style={{
-                      background: plan.highlight ? 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))' : 'var(--bg-card)',
-                      border: `1px solid ${plan.highlight ? 'rgba(233,30,140,0.4)' : plan.current ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
-                    }}>
-                    {plan.highlight && (
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full self-start" style={{ background: 'var(--accent)', color: '#fff' }}>
-                        RECOMMENDED
-                      </span>
-                    )}
-                    <div>
-                      <h3 className="font-bold text-white">{plan.name}</h3>
-                      <p className="text-2xl font-black text-white mt-1">
-                        {plan.price}<span className="text-sm font-normal text-gray-400">{plan.period}</span>
-                      </p>
+                ] as const).map((plan) => {
+                  const isCurrent = (billing?.currentTier ?? 'free') === plan.level
+                  const isBusy = billingBusy === `subscription:${plan.level}`
+
+                  return (
+                    <div key={plan.level} className="rounded-xl p-5 flex flex-col gap-4"
+                      style={{
+                        background: plan.highlight ? 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))' : 'var(--bg-card)',
+                        border: `1px solid ${plan.highlight ? 'rgba(233,30,140,0.4)' : isCurrent ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
+                      }}>
+                      {plan.highlight && (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full self-start" style={{ background: 'var(--accent)', color: '#fff' }}>
+                          RECOMMENDED
+                        </span>
+                      )}
+                      <div>
+                        <h3 className="font-bold text-white">{plan.name}</h3>
+                        <p className="text-2xl font-black text-white mt-1">
+                          {plan.price}<span className="text-sm font-normal text-gray-400">{plan.period}</span>
+                        </p>
+                      </div>
+                      <ul className="space-y-2 flex-1">
+                        {plan.features.map((f) => (
+                          <li key={f} className="flex items-center gap-2 text-sm" style={{ color: '#d1d5db' }}>
+                            <svg className="w-4 h-4 shrink-0" style={{ color: '#4ade80' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                            {f}
+                          </li>
+                        ))}
+                      </ul>
+                      <button
+                        type="button"
+                        disabled={plan.level === 'free' || isCurrent || isBusy}
+                        onClick={() => plan.level !== 'free' && handleCheckout('subscription', plan.level)}
+                        className={plan.level === 'free' || isCurrent ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}
+                      >
+                        {plan.level === 'free' || isCurrent ? 'Current plan' : isBusy ? 'Redirecting...' : plan.cta}
+                      </button>
                     </div>
-                    <ul className="space-y-2 flex-1">
-                      {plan.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-sm" style={{ color: '#d1d5db' }}>
-                          <svg className="w-4 h-4 shrink-0" style={{ color: '#4ade80' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                          </svg>
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <button disabled={plan.current} className={plan.current ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}>
-                      {plan.current ? 'Current plan' : plan.cta}
-                    </button>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-black text-white">Credit packs</h2>
+                  <p className="text-sm mt-1" style={{ color: '#d1d5db' }}>
+                    One-time Stripe payments for paid visibility actions and future premium boosts.
+                  </p>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-4">
+                  {([
+                    {
+                      key: 'starter',
+                      name: 'Starter Pack',
+                      price: 'EUR 15',
+                      credits: 10,
+                      description: 'A compact pack for occasional boosts.',
+                    },
+                    {
+                      key: 'boost',
+                      name: 'Boost Pack',
+                      price: 'EUR 35',
+                      credits: 25,
+                      description: 'Balanced pack for recurring promotion actions.',
+                    },
+                    {
+                      key: 'power',
+                      name: 'Power Pack',
+                      price: 'EUR 75',
+                      credits: 60,
+                      description: 'Best value if you plan to consume credits every week.',
+                    },
+                  ] as const).map((pack) => {
+                    const isBusy = billingBusy === `credits:${pack.key}`
+
+                    return (
+                      <div key={pack.key} className="rounded-xl p-5 flex flex-col gap-4"
+                        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div>
+                          <h3 className="font-bold text-white">{pack.name}</h3>
+                          <p className="text-2xl font-black text-white mt-1">{pack.price}</p>
+                          <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>{pack.description}</p>
+                        </div>
+                        <div className="rounded-lg px-3 py-2 self-start"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', color: '#fff' }}>
+                          {pack.credits} credits
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCheckout('credits', pack.key)}
+                          disabled={isBusy}
+                          className="btn-accent text-sm py-2"
+                        >
+                          {isBusy ? 'Redirecting...' : `Buy ${pack.name}`}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
                 Secure payment via Stripe · Cancel anytime · No commitment
               </p>

@@ -1,51 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { NextRequest, NextResponse } from 'next/server'
+import Stripe from 'stripe'
+import { getStripeClient } from '@/lib/stripe/client'
+import { creditWalletFromCheckoutSession, syncSubscriptionFromStripe } from '@/services/billing.service'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2026-02-25.clover',
-});
+export const runtime = 'nodejs'
 
-/**
- * POST /api/webhooks/stripe
- * Handle Stripe webhook events
- */
 export async function POST(request: NextRequest) {
-  const body = await request.text();
-  const sig = request.headers.get('stripe-signature')!;
+  const body = await request.text()
+  const signature = request.headers.get('stripe-signature')
+
+  if (!signature) {
+    return NextResponse.json({ error: 'Missing Stripe signature' }, { status: 400 })
+  }
 
   try {
+    const stripe = getStripeClient()
     const event = stripe.webhooks.constructEvent(
       body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET!,
-    );
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
 
     switch (event.type) {
+      case 'checkout.session.completed':
+        await creditWalletFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
+        break
+
+      case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        // Handle subscription update
-        console.log('Subscription updated:', event.data.object);
-        break;
-
       case 'customer.subscription.deleted':
-        // Handle subscription cancellation
-        console.log('Subscription canceled:', event.data.object);
-        break;
-
-      case 'invoice.payment_succeeded':
-        // Handle successful payment
-        console.log('Payment succeeded:', event.data.object);
-        break;
+        await syncSubscriptionFromStripe(event.data.object as Stripe.Subscription)
+        break
 
       default:
-        console.log(`Unhandled event type: ${event.type}`);
+        console.log(`[stripe] Unhandled webhook event: ${event.type}`)
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json(
-      { error: 'Webhook error' },
-      { status: 400 },
-    );
+    console.error('[stripe] webhook processing failed', error)
+    return NextResponse.json({ error: 'Webhook error' }, { status: 400 })
   }
 }
