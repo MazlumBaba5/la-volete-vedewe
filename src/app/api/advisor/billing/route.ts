@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 
 export async function GET() {
@@ -36,8 +37,13 @@ export async function GET() {
       throw subscriptionError
     }
 
-    const activeSubscription = subscriptionRows?.find((row) => row.status === 'active') ?? null
-    const latestSubscription = subscriptionRows?.[0] ?? null
+    const activeSubscription = subscriptionRows?.find((row) => isSubscriptionCurrentlyActive(row)) ?? null
+    const latestSubscription = subscriptionRows?.[0]
+      ? {
+          ...subscriptionRows[0],
+          status: isSubscriptionCurrentlyActive(subscriptionRows[0]) ? subscriptionRows[0].status : 'expired',
+        }
+      : null
 
     const { data: wallet, error: walletError } = await admin
       .from('credit_wallets')

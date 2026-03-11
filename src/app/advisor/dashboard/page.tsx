@@ -74,7 +74,6 @@ type BillingSummary = {
     status: string
     stripe_customer_id: string | null
     current_period_end: string | null
-    cancel_at_period_end: boolean | null
     updated_at: string
   } | null
   wallet: {
@@ -324,28 +323,6 @@ export default function DashboardPage() {
       setBillingMsg({
         type: 'error',
         text: error instanceof Error ? error.message : 'Unable to start Stripe checkout',
-      })
-      setBillingBusy(null)
-    }
-  }
-
-  async function handleOpenBillingPortal() {
-    setBillingBusy('portal')
-    setBillingMsg(null)
-
-    try {
-      const res = await fetch('/api/stripe/portal', { method: 'POST' })
-      const json = await res.json()
-
-      if (!res.ok || !json.url) {
-        throw new Error(json.error ?? 'Unable to open Stripe billing portal')
-      }
-
-      window.location.href = json.url as string
-    } catch (error) {
-      setBillingMsg({
-        type: 'error',
-        text: error instanceof Error ? error.message : 'Unable to open Stripe billing portal',
       })
       setBillingBusy(null)
     }
@@ -715,21 +692,13 @@ export default function DashboardPage() {
                         {billingLoading ? 'Loading...' : billing?.currentTier === 'diamond' ? 'Diamond' : billing?.currentTier === 'premium' ? 'Premium' : 'Standard'}
                       </h2>
                       <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>
-                        {billing?.subscription?.current_period_end
-                          ? `Renews on ${formatShortDate(billing.subscription.current_period_end)}`
-                          : 'No active recurring subscription yet.'}
+                        {billing?.currentTier !== 'free' && billing?.subscription?.current_period_end
+                          ? `Active until ${formatShortDate(billing.subscription.current_period_end)}`
+                          : billing?.subscription?.current_period_end
+                          ? `Last paid plan expired on ${formatShortDate(billing.subscription.current_period_end)}`
+                          : 'No active paid plan yet.'}
                       </p>
                     </div>
-                    {billing?.subscription?.stripe_customer_id && (
-                      <button
-                        type="button"
-                        onClick={handleOpenBillingPortal}
-                        disabled={billingBusy === 'portal'}
-                        className="btn-outline text-sm px-4 py-2"
-                      >
-                        {billingBusy === 'portal' ? 'Opening...' : 'Manage billing'}
-                      </button>
-                    )}
                   </div>
 
                   <div className="grid sm:grid-cols-2 gap-4 pt-2">
@@ -747,9 +716,7 @@ export default function DashboardPage() {
                         {billingLoading ? 'Loading...' : billing?.subscription?.status ?? 'inactive'}
                       </p>
                       <p className="text-sm mt-2" style={{ color: '#d1d5db' }}>
-                        {billing?.subscription?.cancel_at_period_end
-                          ? 'Cancellation is scheduled at the end of the current billing cycle.'
-                          : 'Payments and renewals are handled securely by Stripe.'}
+                        One-time payment. Renew manually when the 30-day access period expires.
                       </p>
                     </div>
                   </div>
@@ -790,14 +757,14 @@ export default function DashboardPage() {
                     cta: 'Current plan', highlight: false,
                   },
                   {
-                    level: 'premium', name: 'Premium', price: 'EUR 29', period: '/ mo',
+                    level: 'premium', name: 'Premium', price: 'EUR 29', period: '/ 30 days',
                     features: ['Up to 5 photos', 'Priority position', 'Premium badge', 'Advanced stats'],
-                    cta: 'Upgrade to Premium', highlight: false,
+                    cta: 'Buy Premium', highlight: false,
                   },
                   {
-                    level: 'diamond', name: 'Diamond', price: 'EUR 59', period: '/ mo',
+                    level: 'diamond', name: 'Diamond', price: 'EUR 59', period: '/ 30 days',
                     features: ['Unlimited photos', 'Top of results', 'Diamond badge', 'Full stats', 'Priority support'],
-                    cta: 'Upgrade to Diamond', highlight: true,
+                    cta: 'Buy Diamond', highlight: true,
                   },
                 ] as const).map((plan) => {
                   const isCurrent = (billing?.currentTier ?? 'free') === plan.level
@@ -856,21 +823,21 @@ export default function DashboardPage() {
                     {
                       key: 'starter',
                       name: 'Starter Pack',
-                      price: 'EUR 15',
+                      price: 'EUR 10',
                       credits: 10,
                       description: 'A compact pack for occasional boosts.',
                     },
                     {
                       key: 'boost',
                       name: 'Boost Pack',
-                      price: 'EUR 35',
+                      price: 'EUR 20',
                       credits: 25,
                       description: 'Balanced pack for recurring promotion actions.',
                     },
                     {
                       key: 'power',
                       name: 'Power Pack',
-                      price: 'EUR 75',
+                      price: 'EUR 50',
                       credits: 60,
                       description: 'Best value if you plan to consume credits every week.',
                     },

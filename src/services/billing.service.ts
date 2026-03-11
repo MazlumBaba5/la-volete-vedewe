@@ -1,5 +1,6 @@
 import type Stripe from 'stripe'
 import { createAdminClient } from '@/lib/supabase/server'
+import { addOneMonthPreservingCalendar, isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 
 type LocalSubscriptionStatus = 'active' | 'canceled' | 'expired'
 
@@ -222,5 +223,123 @@ export async function creditWalletFromCheckoutSession(session: Stripe.Checkout.S
     }
 
     throw insertTransactionError
+  }
+}
+
+export async function activateSubscriptionFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const metadata = session.metadata ?? {}
+
+  if (metadata.kind !== 'subscription') {
+    return
+  }
+
+  if (session.payment_status !== 'paid') {
+    console.warn('[stripe] Subscription checkout completed without a paid status', {
+      sessionId: session.id,
+      paymentStatus: session.payment_status,
+    })
+    return
+  }
+
+  const advisorId = metadata.advisor_id
+  const tier = metadata.tier === 'diamond' ? 'diamond' : metadata.tier === 'premium' ? 'premium' : 'free'
+  const paymentIntentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id
+  const customerId = typeof session.customer === 'string'
+    ? session.customer
+    : session.customer?.id
+
+  if (!advisorId || tier === 'free' || !paymentIntentId) {
+    console.warn('[stripe] Incomplete manual subscription checkout session metadata', {
+      sessionId: session.id,
+      advisorId,
+      tier,
+      paymentIntentId,
+    })
+    return
+  }
+
+  const supabase = createAdminClient()
+  const referenceId = `manual:${paymentIntentId}`
+
+  const { data: existing, error: existingLookupError } = await supabase
+    .from('subscriptions')
+    .select('id')
+    .eq('stripe_subscription_id', referenceId)
+    .maybeSingle()
+
+  if (existingLookupError) {
+    throw existingLookupError
+  }
+
+  if (existing?.id) {
+    return
+  }
+
+  const { data: activeSubscriptions, error: activeLookupError } = await supabase
+    .from('subscriptions')
+    .select('id, tier, status, current_period_end')
+    .eq('advisor_id', advisorId)
+    .eq('status', 'active')
+    .order('current_period_end', { ascending: false })
+
+  if (activeLookupError) {
+    throw activeLookupError
+  }
+
+  const renewableSubscription = (activeSubscriptions ?? []).find((subscription) =>
+    subscription.tier === tier && isSubscriptionCurrentlyActive(subscription)
+  )
+
+  const now = new Date()
+  const periodBase = renewableSubscription?.current_period_end
+    ? new Date(renewableSubscription.current_period_end)
+    : now
+  const periodEnd = addOneMonthPreservingCalendar(periodBase)
+  const nowIso = now.toISOString()
+
+  const activeIds = (activeSubscriptions ?? []).map((subscription) => subscription.id).filter(Boolean)
+  if (activeIds.length > 0) {
+    const { error: expireError } = await supabase
+      .from('subscriptions')
+      .update({
+        status: 'expired',
+        cancel_at_period_end: false,
+        cancelled_at: nowIso,
+        updated_at: nowIso,
+      })
+      .in('id', activeIds)
+
+    if (expireError) {
+      throw expireError
+    }
+  }
+
+  const { error: insertError } = await supabase
+    .from('subscriptions')
+    .insert([{
+      advisor_id: advisorId,
+      tier,
+      status: 'active',
+      stripe_subscription_id: referenceId,
+      stripe_customer_id: customerId ?? null,
+      stripe_price_id: metadata.price_id ?? null,
+      current_period_start: nowIso,
+      current_period_end: periodEnd.toISOString(),
+      cancel_at_period_end: false,
+      cancelled_at: null,
+      metadata: {
+        ...metadata,
+        source: 'stripe_checkout_manual',
+        checkout_session_id: session.id,
+        payment_intent_id: paymentIntentId,
+      },
+      created_at: nowIso,
+      updated_at: nowIso,
+    }])
+
+  if (insertError) {
+    throw insertError
   }
 }

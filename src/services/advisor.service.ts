@@ -1,5 +1,6 @@
 // src/services/advisor.service.ts
 import { createAdminClient } from '@/lib/supabase/server'
+import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 import type { Profile, ProfilePhoto, Category, City } from '@/types'
 
 // Selects advisor columns + their media via the FK relationship.
@@ -94,14 +95,18 @@ async function enrichWithSubscriptions(
 ): Promise<Profile[]> {
   if (rows.length === 0) return []
   const ids = rows.map((r) => r.id as string)
+  const nowIso = new Date().toISOString()
   const { data: subs } = await supabase
     .from('subscriptions')
-    .select('advisor_id, tier')
+    .select('advisor_id, tier, status, current_period_end')
     .in('advisor_id', ids)
     .eq('status', 'active')
+    .gt('current_period_end', nowIso)
     .in('tier', ['premium', 'diamond'])
   const tierMap = new Map<string, string>(
-    (subs ?? []).map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
+    (subs ?? [])
+      .filter((s: { status: string; current_period_end: string | null }) => isSubscriptionCurrentlyActive(s))
+      .map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
   )
   return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
 }
@@ -134,30 +139,36 @@ export async function getProfileBySlug(slug: string): Promise<Profile | null> {
 
   if (error) { console.error('[getProfileBySlug]', error.message); return null }
   const row = data as unknown as Record<string, unknown>
+  const nowIso = new Date().toISOString()
   const { data: subs } = await supabase
     .from('subscriptions')
-    .select('tier')
+    .select('tier, status, current_period_end')
     .eq('advisor_id', row.id as string)
     .eq('status', 'active')
+    .gt('current_period_end', nowIso)
     .in('tier', ['premium', 'diamond'])
     .maybeSingle()
-  return mapRow(row, subs?.tier)
+  return mapRow(row, isSubscriptionCurrentlyActive(subs) ? subs?.tier : undefined)
 }
 
 export async function getFeaturedProfiles(): Promise<Profile[]> {
   const supabase = createAdminClient()
+  const nowIso = new Date().toISOString()
 
   // Advisors with an active paid subscription — these are "featured"
   const { data: paidSubs } = await supabase
     .from('subscriptions')
-    .select('advisor_id, tier')
+    .select('advisor_id, tier, status, current_period_end')
     .eq('status', 'active')
+    .gt('current_period_end', nowIso)
     .in('tier', ['premium', 'diamond'])
 
-  if (paidSubs && paidSubs.length > 0) {
-    const paidIds = paidSubs.map((s: { advisor_id: string }) => s.advisor_id)
+  const activePaidSubs = (paidSubs ?? []).filter((subscription) => isSubscriptionCurrentlyActive(subscription))
+
+  if (activePaidSubs.length > 0) {
+    const paidIds = activePaidSubs.map((s: { advisor_id: string }) => s.advisor_id)
     const tierMap = new Map<string, string>(
-      paidSubs.map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
+      activePaidSubs.map((s: { advisor_id: string; tier: string }) => [s.advisor_id, s.tier])
     )
     const { data, error } = await supabase
       .from('advisors')

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripeClient } from '@/lib/stripe/client'
-import { creditWalletFromCheckoutSession, syncSubscriptionFromStripe } from '@/services/billing.service'
+import {
+  activateSubscriptionFromCheckoutSession,
+  creditWalletFromCheckoutSession,
+  syncSubscriptionFromStripe,
+} from '@/services/billing.service'
 
 export const runtime = 'nodejs'
 
@@ -23,6 +27,7 @@ export async function POST(request: NextRequest) {
 
     switch (event.type) {
       case 'checkout.session.completed':
+        await activateSubscriptionFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
         await creditWalletFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
         break
 

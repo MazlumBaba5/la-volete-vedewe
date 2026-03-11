@@ -74,26 +74,21 @@ export async function POST(request: NextRequest) {
     if (body.kind === 'subscription') {
       const plan = getSubscriptionPlan(body.plan)
       const session = await stripe.checkout.sessions.create({
-        mode: 'subscription',
+        mode: 'payment',
         line_items: [{ price: plan.priceId, quantity: 1 }],
         success_url: successUrl,
         cancel_url: cancelUrl,
         allow_promotion_codes: true,
         client_reference_id: advisorId,
         customer: customerId,
+        customer_creation: customerId ? undefined : 'always',
         customer_email: customerId ? undefined : user.email ?? undefined,
         metadata: {
           kind: 'subscription',
           advisor_id: advisorId,
           profile_id: user.id,
           tier: plan.key,
-        },
-        subscription_data: {
-          metadata: {
-            advisor_id: advisorId,
-            profile_id: user.id,
-            tier: plan.key,
-          },
+          price_id: plan.priceId,
         },
       })
 
@@ -109,6 +104,7 @@ export async function POST(request: NextRequest) {
       allow_promotion_codes: true,
       client_reference_id: advisorId,
       customer: customerId,
+      customer_creation: customerId ? undefined : 'always',
       customer_email: customerId ? undefined : user.email ?? undefined,
       metadata: {
         kind: 'credits',
