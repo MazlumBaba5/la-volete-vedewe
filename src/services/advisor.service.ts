@@ -106,12 +106,17 @@ async function enrichWithSubscriptions(
   return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
 }
 
+// Statuses that should be visible in the public marketplace.
+// 'pending' is included because advisors register as 'active' via the API;
+// any manually-inserted row defaults to 'pending' and should still appear.
+const VISIBLE_STATUSES = ['active', 'pending'] as const
+
 export async function getAllProfiles(): Promise<Profile[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .eq('status', 'active')
+    .in('status', VISIBLE_STATUSES)
     .order('views_count', { ascending: false })
 
   if (error) { console.error('[getAllProfiles]', error.message); return [] }
@@ -158,7 +163,7 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
       .from('advisors')
       .select(PUBLIC_COLUMNS)
       .in('id', paidIds)
-      .eq('status', 'active')
+      .in('status', VISIBLE_STATUSES)
       .order('views_count', { ascending: false })
       .limit(12)
     if (error) { console.error('[getFeaturedProfiles]', error.message); return [] }
@@ -168,11 +173,11 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
     return sortByTier(profiles)
   }
 
-  // Fallback: most-viewed active advisors when no paid subscriptions exist yet
+  // Fallback: most-viewed visible advisors when no paid subscriptions exist yet
   const { data, error } = await supabase
     .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .eq('status', 'active')
+    .in('status', VISIBLE_STATUSES)
     .order('views_count', { ascending: false })
     .limit(12)
 
@@ -185,7 +190,7 @@ export async function getRecentProfiles(): Promise<Profile[]> {
   const { data, error } = await supabase
     .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .eq('status', 'active')
+    .in('status', VISIBLE_STATUSES)
     .order('created_at', { ascending: false })
     .limit(12)
 
@@ -205,7 +210,7 @@ export async function searchProfiles(filters: {
   let q = supabase
     .from('advisors')
     .select(PUBLIC_COLUMNS)
-    .eq('status', 'active')
+    .in('status', VISIBLE_STATUSES)
 
   if (filters.city) q = q.eq('city', filters.city)
   if (filters.verified) q = q.eq('is_verified', true)
@@ -250,7 +255,7 @@ export async function getCities(): Promise<City[]> {
   const { data, error } = await supabase
     .from('advisors')
     .select('city, region')
-    .eq('status', 'active')
+    .in('status', VISIBLE_STATUSES)
     .not('city', 'is', null)
 
   if (error) { console.error('[getCities]', error.message); return [] }
@@ -280,4 +285,30 @@ export async function getCities(): Promise<City[]> {
 export async function incrementViews(slug: string): Promise<void> {
   const supabase = createAdminClient()
   await supabase.rpc('increment_advisor_views', { advisor_slug: slug }).throwOnError()
+}
+
+export interface SiteStats {
+  totalAdvisors: number
+  totalCities: number
+}
+
+export async function getSiteStats(): Promise<SiteStats> {
+  const supabase = createAdminClient()
+  const { count } = await supabase
+    .from('advisors')
+    .select('*', { count: 'exact', head: true })
+    .in('status', VISIBLE_STATUSES)
+
+  const { data: cityData } = await supabase
+    .from('advisors')
+    .select('city')
+    .in('status', VISIBLE_STATUSES)
+    .not('city', 'is', null)
+
+  const cityCount = new Set((cityData ?? []).map((r: { city: string }) => r.city?.trim()).filter(Boolean)).size
+
+  return {
+    totalAdvisors: count ?? 0,
+    totalCities: cityCount,
+  }
 }

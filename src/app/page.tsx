@@ -5,22 +5,23 @@ import Footer from '@/components/layout/Footer'
 import HeroSection from '@/components/marketplace/HeroSection'
 import CategorySection from '@/components/marketplace/CategorySection'
 import ProfileCard from '@/components/marketplace/ProfileCard'
-import { getFeaturedProfiles, getRecentProfiles, getCities } from '@/services/advisor.service'
+import { getFeaturedProfiles, getRecentProfiles, getCities, getSiteStats } from '@/services/advisor.service'
 
 export const revalidate = 60
 
 export default async function Home() {
-  const [featured, recent, cities] = await Promise.all([
+  const [featured, recent, cities, stats] = await Promise.all([
     getFeaturedProfiles(),
     getRecentProfiles(),
     getCities(),
+    getSiteStats(),
   ])
 
   return (
     <>
       <Header />
       <main>
-        <HeroSection cities={cities} />
+        <HeroSection cities={cities} stats={stats} />
         <CategorySection />
 
         {/* Featured */}

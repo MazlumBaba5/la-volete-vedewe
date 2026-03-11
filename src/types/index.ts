@@ -123,3 +123,8 @@ export interface SearchResult {
   page: number;
   limit: number;
 }
+
+export interface SiteStats {
+  totalAdvisors: number;
+  totalCities: number;
+}

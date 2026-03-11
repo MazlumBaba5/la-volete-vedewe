@@ -4,13 +4,14 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { City } from '@/types'
+import type { City, SiteStats } from '@/types'
 
 interface Props {
   cities?: City[]
+  stats?: SiteStats
 }
 
-export default function HeroSection({ cities = [] }: Props) {
+export default function HeroSection({ cities = [], stats }: Props) {
   const router = useRouter()
   const [query, setQuery] = useState('')
   const [city, setCity] = useState('')
@@ -44,7 +45,7 @@ export default function HeroSection({ cities = [] }: Props) {
         {/* Badge */}
         <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full mb-6"
           style={{ background: 'rgba(233,30,140,0.15)', border: '1px solid rgba(233,30,140,0.4)', color: 'var(--accent)' }}>
-          🇳🇱 &nbsp;+2800 listings across the Netherlands
+          🇳🇱 &nbsp;{stats ? `+${stats.totalAdvisors.toLocaleString()}` : '+'} listings across the Netherlands
         </div>
 
         <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight max-w-3xl">
@@ -108,9 +109,9 @@ export default function HeroSection({ cities = [] }: Props) {
         {/* Stats */}
         <div className="mt-10 flex gap-8 md:gap-16">
           {[
-            { value: '2.800+', label: 'Active listings' },
+            { value: stats ? `${stats.totalAdvisors.toLocaleString()}+` : '…', label: 'Active listings' },
             { value: '98%', label: 'Fast response' },
-            { value: '12+', label: 'Cities' },
+            { value: stats ? `${stats.totalCities}+` : '…', label: 'Cities' },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="text-2xl font-black"
