@@ -11,6 +11,7 @@ export interface User {
 }
 
 export type SubscriptionLevel = 'free' | 'premium' | 'diamond';
+export type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale';
 
 // Profile (marketplace listing)
 export interface ProfilePhoto {
@@ -29,6 +30,7 @@ export interface Profile {
   id: string;
   slug: string;
   name: string;
+  advisorCategory?: AdvisorCategory;
   age: number;
   city: string;
   district?: string;
@@ -102,7 +104,7 @@ export interface Subscription {
 // Search & Filter
 export interface SearchFilters {
   query?: string;
-  category?: string;
+  category?: AdvisorCategory;
   city?: string;
   region?: string;
   minAge?: number;

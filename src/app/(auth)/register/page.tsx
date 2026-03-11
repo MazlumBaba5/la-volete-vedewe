@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import CityAutocomplete from '@/components/ui/CityAutocomplete';
 
 type Role = 'guest' | 'advisor';
+type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function RegisterPage() {
     email: '',
     password: '',
     name: '',
+    advisorCategory: 'woman' as AdvisorCategory,
     city: '',
     region: '',
     phone: '',
@@ -47,6 +49,7 @@ export default function RegisterPage() {
           password: form.password,
           role,
           name: form.name,
+          advisorCategory: form.advisorCategory,
           city: form.city,
           region: form.region,
           phone: form.phone,
@@ -290,6 +293,20 @@ export default function RegisterPage() {
                   onChange={(city, region) => setForm((f) => ({ ...f, city, region }))}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
+              <select
+                value={form.advisorCategory}
+                onChange={(e) => update('advisorCategory', e.target.value as AdvisorCategory)}
+                className="input-dark"
+              >
+                <option value="woman">Woman</option>
+                <option value="man">Man</option>
+                <option value="couple">Couple</option>
+                <option value="shemale">Shemale</option>
+              </select>
             </div>
 
             <div>

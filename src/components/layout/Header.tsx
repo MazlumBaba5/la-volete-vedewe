@@ -4,11 +4,28 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MOCK_CATEGORIES } from '@/lib/mock-data';
+
+const SERVICE_LINKS = [
+  { label: 'InCall', service: 'Incall' },
+  { label: 'OutCall (Escort)', service: 'Outcall' },
+  { label: 'Erotic massage', service: 'Erotic massage' },
+  { label: 'BDSM', service: 'Domination' },
+  { label: 'SexCam', service: 'Webcam' },
+] as const;
+
+const NAV_GROUPS = [
+  { label: 'Women', icon: '👠', category: 'woman' },
+  { label: 'Men', icon: '🕴️', category: 'man' },
+  { label: 'Couples', icon: '💞', category: 'couple' },
+  { label: 'Shemales', icon: '🔥', category: 'shemale' },
+] as const;
+
+const MASSAGE_GROUP = { label: 'Massages', icon: '💆' } as const;
 
 export default function Header() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
@@ -142,30 +159,88 @@ export default function Header() {
 
       {/* Category nav */}
       <nav
-        className="hidden md:block border-t overflow-x-auto"
+        className="hidden md:block border-t"
         style={{ borderColor: 'var(--border)' }}
       >
         <div
-          className="flex items-center px-4 lg:px-8 gap-1 py-1"
+          className="flex items-center px-4 lg:px-8 gap-2 py-2"
           style={{ maxWidth: 1400, margin: '0 auto' }}
         >
-          <Link
-            href="/listings"
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white whitespace-nowrap rounded-lg transition-colors"
-            style={{ ':hover': { background: 'var(--bg-elevated)' } } as React.CSSProperties}
-          >
-            All listings
-          </Link>
-          {MOCK_CATEGORIES.map((cat: typeof MOCK_CATEGORIES[0]) => (
-            <Link
-              key={cat.id}
-              href={`/listings?categoria=${cat.slug}`}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 hover:text-white whitespace-nowrap rounded-lg transition-colors"
-            >
-              <span>{cat.icon}</span>
-              {cat.label}
-            </Link>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="group relative">
+              <Link
+                href={`/listings?category=${group.category}`}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
+              >
+                <span>{group.icon}</span>
+                {group.label}
+                <svg className="h-4 w-4 text-gray-500 transition-transform group-hover:rotate-180 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </Link>
+
+              <div className="pointer-events-none absolute left-0 top-full z-40 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                <div
+                  className="min-w-[230px] rounded-2xl p-2"
+                  style={{
+                    background: 'rgba(19, 19, 31, 0.98)',
+                    border: '1px solid var(--border)',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+                  }}
+                >
+                  {SERVICE_LINKS.map((item) => (
+                    <Link
+                      key={`${group.label}-${item.label}`}
+                      href={`/listings?category=${group.category}&services=${encodeURIComponent(item.service)}`}
+                      className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
+                    >
+                      <span>{item.label}</span>
+                      <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                        {group.label}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           ))}
+
+          <div className="group relative">
+            <Link
+              href={`/listings?services=${encodeURIComponent('Massage')},${encodeURIComponent('Erotic massage')}`}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
+            >
+              <span>{MASSAGE_GROUP.icon}</span>
+              {MASSAGE_GROUP.label}
+              <svg className="h-4 w-4 text-gray-500 transition-transform group-hover:rotate-180 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </Link>
+
+            <div className="pointer-events-none absolute left-0 top-full z-40 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+              <div
+                className="min-w-[230px] rounded-2xl p-2"
+                style={{
+                  background: 'rgba(19, 19, 31, 0.98)',
+                  border: '1px solid var(--border)',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+                }}
+              >
+                {SERVICE_LINKS.map((item) => (
+                  <Link
+                    key={`massage-${item.label}`}
+                    href={`/listings?services=${encodeURIComponent(item.service)}`}
+                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
+                  >
+                    <span>{item.label}</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                      Massages
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </nav>
 
@@ -196,23 +271,99 @@ export default function Header() {
             </svg>
             <input
               placeholder="Search…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 bg-transparent px-3 py-2.5 text-sm text-gray-200 placeholder-gray-500 outline-none"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {MOCK_CATEGORIES.map((cat: typeof MOCK_CATEGORIES[0]) => (
-              <Link
-                key={cat.id}
-                href={`/listings?categoria=${cat.slug}`}
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 rounded-lg"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+          <div className="space-y-2">
+            {NAV_GROUPS.map((group) => {
+              const isExpanded = mobileExpanded === group.label;
+
+              return (
+                <div
+                  key={group.label}
+                  className="rounded-xl"
+                  style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setMobileExpanded(isExpanded ? null : group.label)}
+                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                  >
+                    <span className="text-sm font-medium text-gray-200">{group.icon} {group.label}</span>
+                    <svg className={`h-4 w-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="space-y-1 px-2 pb-2">
+                      <Link
+                        href={`/listings?category=${group.category}`}
+                        onClick={() => setMobileOpen(false)}
+                        className="block rounded-lg px-3 py-2 text-sm font-medium text-white"
+                        style={{ background: 'rgba(233,30,140,0.16)' }}
+                      >
+                        View all {group.label}
+                      </Link>
+                      {SERVICE_LINKS.map((item) => (
+                        <Link
+                          key={`${group.label}-${item.label}`}
+                          href={`/listings?category=${group.category}&services=${encodeURIComponent(item.service)}`}
+                          onClick={() => setMobileOpen(false)}
+                          className="block rounded-lg px-3 py-2 text-sm text-gray-300"
+                          style={{ background: 'var(--bg-elevated)' }}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <div
+              className="rounded-xl"
+              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+            >
+              <button
+                type="button"
+                onClick={() => setMobileExpanded(mobileExpanded === MASSAGE_GROUP.label ? null : MASSAGE_GROUP.label)}
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
               >
-                <span>{cat.icon}</span>
-                {cat.label}
-              </Link>
-            ))}
+                <span className="text-sm font-medium text-gray-200">{MASSAGE_GROUP.icon} {MASSAGE_GROUP.label}</span>
+                <svg className={`h-4 w-4 text-gray-500 transition-transform ${mobileExpanded === MASSAGE_GROUP.label ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {mobileExpanded === MASSAGE_GROUP.label && (
+                <div className="space-y-1 px-2 pb-2">
+                  <Link
+                    href={`/listings?services=${encodeURIComponent('Massage')},${encodeURIComponent('Erotic massage')}`}
+                    onClick={() => setMobileOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm font-medium text-white"
+                    style={{ background: 'rgba(233,30,140,0.16)' }}
+                  >
+                    View all massages
+                  </Link>
+                  {SERVICE_LINKS.map((item) => (
+                    <Link
+                      key={`massage-${item.label}`}
+                      href={`/listings?services=${encodeURIComponent(item.service)}`}
+                      onClick={() => setMobileOpen(false)}
+                      className="block rounded-lg px-3 py-2 text-sm text-gray-300"
+                      style={{ background: 'var(--bg-elevated)' }}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-1">

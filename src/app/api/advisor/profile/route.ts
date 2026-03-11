@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 
 const ALLOWED_FIELDS = [
-  'name', 'bio', 'city', 'region', 'age', 'gender',
+  'name', 'bio', 'city', 'region', 'advisor_category', 'age', 'gender',
   'height_cm', 'weight_kg', 'eye_color', 'hair_color', 'ethnicity',
   'phone', 'whatsapp_available', 'telegram_available',
   'availability', 'languages', 'services_tags',
@@ -63,11 +63,12 @@ export async function POST() {
     const name = (meta.name as string | undefined)?.trim() || (user.email?.split('@')[0] ?? 'user')
     const city = (meta.city as string | undefined)?.trim() || 'Italy'
     const phone = (meta.phone as string | undefined)?.trim() || null
+    const advisorCategory = (meta.advisor_category as string | undefined)?.trim() || 'woman'
     const slug = makeSlug(name)
 
     const { data, error } = await admin
       .from('advisors')
-      .insert([{ profile_id: user.id, name, slug, city, phone }])
+      .insert([{ profile_id: user.id, name, slug, city, phone, advisor_category: advisorCategory }])
       .select()
       .single()
 

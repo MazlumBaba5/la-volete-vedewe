@@ -6,6 +6,7 @@ type Body = {
   password: string
   role: 'guest' | 'advisor'
   name?: string
+  advisorCategory?: 'woman' | 'man' | 'couple' | 'shemale'
   city?: string
   region?: string
   phone?: string
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
         data: {
           role: body.role,
           name: body.name?.trim() || '',
+          advisor_category: body.advisorCategory ?? 'woman',
           city: body.city?.trim() || '',
           region: body.region?.trim() || '',
           phone: body.phone?.trim() || '',
@@ -62,6 +64,7 @@ export async function POST(req: Request) {
         profile_id: userId,
         name,
         slug,
+        advisor_category: body.advisorCategory ?? 'woman',
         city,
         region: body.region?.trim() || null,
         phone: body.phone?.trim() || null,

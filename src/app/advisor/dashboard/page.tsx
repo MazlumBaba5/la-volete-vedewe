@@ -8,8 +8,9 @@ import CityAutocomplete from '@/components/ui/CityAutocomplete'
 import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
 
 // Types
-type GenderType = 'female' | 'male' | 'other'
+type GenderType = 'female' | 'male' | 'shemale'
 type AvailabilityType = 'incall' | 'outcall' | 'both'
+type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale'
 
 type AdvisorRow = {
   id: string
@@ -17,6 +18,7 @@ type AdvisorRow = {
   name: string
   slug: string
   bio: string | null
+  advisor_category: AdvisorCategory
   city: string
   region: string | null
   country: string
@@ -45,6 +47,7 @@ type AdvisorRow = {
 type ProfileForm = {
   name: string
   bio: string
+  advisor_category: AdvisorCategory
   city: string
   region: string
   age: number | null
@@ -105,6 +108,7 @@ function rowToForm(r: AdvisorRow): ProfileForm {
   return {
     name: r.name,
     bio: r.bio ?? '',
+    advisor_category: r.advisor_category ?? 'woman',
     city: r.city,
     region: r.region ?? '',
     age: r.age,
@@ -147,7 +151,7 @@ export default function DashboardPage() {
   const [billingMsg, setBillingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const [form, setForm] = useState<ProfileForm>({
-    name: '', bio: '', city: '', region: '', age: null, gender: 'female',
+    name: '', bio: '', advisor_category: 'woman', city: '', region: '', age: null, gender: 'female',
     height_cm: null, weight_kg: null, eye_color: '', hair_color: '',
     ethnicity: '', availability: 'both', languages: ['en'], services_tags: [],
     phone: '', whatsapp_available: false, telegram_available: false,
@@ -558,6 +562,16 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
+                  <select value={form.advisor_category} onChange={(e) => upd('advisor_category', e.target.value as AdvisorCategory)} className="input-dark">
+                    <option value="woman">Woman</option>
+                    <option value="man">Man</option>
+                    <option value="couple">Couple</option>
+                    <option value="shemale">Shemale</option>
+                  </select>
+                </div>
+
+                <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Region</label>
                   <input type="text" readOnly value={form.region} placeholder="Auto-filled when city is selected" className="input-dark opacity-70" />
                 </div>
@@ -601,7 +615,7 @@ export default function DashboardPage() {
                     <select value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark">
                       <option value="female">Female</option>
                       <option value="male">Male</option>
-                      <option value="other">Other / Trans</option>
+                      <option value="shemale">Shemale / Trans</option>
                     </select>
                   </div>
                   <div>

@@ -19,6 +19,7 @@ CREATE TABLE public.advisors (
   profile_id uuid NOT NULL UNIQUE,
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
+  advisor_category text NOT NULL DEFAULT 'woman'::text CHECK (advisor_category = ANY (ARRAY['woman'::text, 'man'::text, 'couple'::text, 'shemale'::text])),
   bio text,
   city text NOT NULL,
   region text,
