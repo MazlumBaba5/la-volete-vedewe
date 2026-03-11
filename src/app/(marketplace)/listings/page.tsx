@@ -16,6 +16,7 @@ export default async function ListingsPage({ searchParams }: Props) {
   const initialFilters: SearchFilters = {}
   if (params.q) initialFilters.query = String(params.q)
   if (params.city) initialFilters.city = String(params.city)
+  if (params.region) initialFilters.region = String(params.region)
   if (params.tier) initialFilters.subscriptionLevel = String(params.tier) as SearchFilters['subscriptionLevel']
   if (params.verified) initialFilters.verified = true
   if (params.minAge) initialFilters.minAge = Number(params.minAge)

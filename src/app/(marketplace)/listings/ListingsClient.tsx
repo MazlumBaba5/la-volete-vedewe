@@ -21,6 +21,7 @@ function filterProfiles(profiles: Profile[], filters: SearchFilters): Profile[] 
             p.services.some((s) => s.toLowerCase().includes(q))
         )
     }
+    if (filters.region) result = result.filter((p) => p.district === filters.region)
     if (filters.city) result = result.filter((p) => p.city === filters.city)
     if (filters.minAge) result = result.filter((p) => p.age >= filters.minAge!)
     if (filters.maxAge) result = result.filter((p) => p.age <= filters.maxAge!)

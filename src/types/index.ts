@@ -104,6 +104,7 @@ export interface SearchFilters {
   query?: string;
   category?: string;
   city?: string;
+  region?: string;
   minAge?: number;
   maxAge?: number;
   minPrice?: number;

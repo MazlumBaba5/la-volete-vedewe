@@ -7,6 +7,7 @@ type Body = {
   role: 'guest' | 'advisor'
   name?: string
   city?: string
+  region?: string
   phone?: string
 }
 
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
           role: body.role,
           name: body.name?.trim() || '',
           city: body.city?.trim() || '',
+          region: body.region?.trim() || '',
           phone: body.phone?.trim() || '',
         },
       },
@@ -61,6 +63,7 @@ export async function POST(req: Request) {
         name,
         slug,
         city,
+        region: body.region?.trim() || null,
         phone: body.phone?.trim() || null,
         status: 'active',
       }])
@@ -78,6 +81,7 @@ export async function POST(req: Request) {
         name,
         slug,
         city: body.city?.trim() || null,
+        region: body.region?.trim() || null,
         phone: body.phone?.trim() || null,
       }])
 

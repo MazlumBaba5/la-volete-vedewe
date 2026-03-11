@@ -1,6 +1,7 @@
 'use client'
 // src/components/marketplace/SearchFilters.tsx
 
+import { useMemo } from 'react'
 import { type SearchFilters, type City } from '@/types'
 
 const AVAILABLE_SERVICES = [
@@ -18,6 +19,21 @@ interface Props {
 
 export default function SearchFilters({ filters, onChange, onClose, cities = [] }: Props) {
   const update = (partial: Partial<SearchFilters>) => onChange({ ...filters, ...partial })
+
+  // Derive sorted unique regions from the cities list
+  const regions = useMemo(() => {
+    const set = new Set<string>()
+    for (const c of cities) {
+      if (c.region) set.add(c.region)
+    }
+    return Array.from(set).sort()
+  }, [cities])
+
+  // Filter city dropdown to only show cities in the selected region
+  const visibleCities = useMemo(() => {
+    if (!filters.region) return cities
+    return cities.filter((c) => c.region === filters.region)
+  }, [cities, filters.region])
 
   return (
     <div className="space-y-6 text-sm">
@@ -39,6 +55,23 @@ export default function SearchFilters({ filters, onChange, onClose, cities = [] 
         </div>
       </div>
 
+      {/* Region */}
+      {regions.length > 0 && (
+        <div>
+          <label className="block font-medium text-gray-300 mb-2">Region</label>
+          <select
+            value={filters.region ?? ''}
+            onChange={(e) => update({ region: e.target.value || undefined, city: undefined })}
+            className="input-dark"
+          >
+            <option value="">All Regions</option>
+            {regions.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* City */}
       <div>
         <label className="block font-medium text-gray-300 mb-2">City</label>
@@ -48,7 +81,7 @@ export default function SearchFilters({ filters, onChange, onClose, cities = [] 
           className="input-dark"
         >
           <option value="">All Cities</option>
-          {cities.map((c) => (
+          {visibleCities.map((c) => (
             <option key={c.id} value={c.name}>
               {c.name} ({c.count})
             </option>

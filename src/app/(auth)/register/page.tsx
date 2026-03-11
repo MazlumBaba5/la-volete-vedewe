@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import CityAutocomplete from '@/components/ui/CityAutocomplete';
 
 type Role = 'guest' | 'advisor';
 
@@ -17,6 +18,7 @@ export default function RegisterPage() {
     password: '',
     name: '',
     city: '',
+    region: '',
     phone: '',
     agreeTerms: false,
     agreeAge: false,
@@ -46,6 +48,7 @@ export default function RegisterPage() {
           role,
           name: form.name,
           city: form.city,
+          region: form.region,
           phone: form.phone,
         }),
       })
@@ -280,13 +283,11 @@ export default function RegisterPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5">City</label>
-                <input
-                  type="text"
+                <CityAutocomplete
+                  city={form.city}
+                  region={form.region}
                   required
-                  value={form.city}
-                  onChange={(e) => update('city', e.target.value)}
-                  placeholder="Roma"
-                  className="input-dark"
+                  onChange={(city, region) => setForm((f) => ({ ...f, city, region }))}
                 />
               </div>
             </div>

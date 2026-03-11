@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import CityAutocomplete from '@/components/ui/CityAutocomplete'
 
 // Types
 
@@ -484,24 +485,23 @@ export default function DashboardPage() {
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
                       City <span style={{ color: 'var(--accent)' }}>*</span>
                     </label>
-                    <input
-                      type="text"
+                    <CityAutocomplete
+                      city={form.city}
+                      region={form.region}
                       required
-                      value={form.city}
-                      onChange={(e) => upd('city', e.target.value)}
-                      className="input-dark"
+                      onChange={(city, region) => setForm((f) => ({ ...f, city, region }))}
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Region / District</label>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Region</label>
                   <input
                     type="text"
+                    readOnly
                     value={form.region}
-                    onChange={(e) => upd('region', e.target.value)}
-                    placeholder="e.g. Lazio, Milan area..."
-                    className="input-dark"
+                    placeholder="Auto-filled when city is selected"
+                    className="input-dark opacity-70"
                   />
                 </div>
 
