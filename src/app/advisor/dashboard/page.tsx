@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import CityAutocomplete from '@/components/ui/CityAutocomplete'
+import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
 
 // Types
-
 type GenderType = 'female' | 'male' | 'other'
 type AvailabilityType = 'incall' | 'outcall' | 'both'
 
@@ -65,7 +65,6 @@ type ProfileForm = {
 type TabId = 'overview' | 'profile' | 'subscription' | 'settings'
 
 // Helpers
-
 function profileCompleteness(advisor: AdvisorRow): number {
   const optional: (keyof AdvisorRow)[] = [
     'bio', 'age', 'height_cm', 'weight_kg',
@@ -92,7 +91,7 @@ function rowToForm(r: AdvisorRow): ProfileForm {
     hair_color: r.hair_color ?? '',
     ethnicity: r.ethnicity ?? '',
     availability: r.availability ?? 'both',
-    languages: r.languages ?? ['it'],
+    languages: r.languages ?? ['en'],
     services_tags: r.services_tags ?? [],
     phone: r.phone ?? '',
     whatsapp_available: r.whatsapp_available ?? false,
@@ -101,18 +100,18 @@ function rowToForm(r: AdvisorRow): ProfileForm {
 }
 
 // Component
-
 export default function DashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const [advisor, setAdvisor] = useState<AdvisorRow | null>(null)
   const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([])
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', city: '', region: '', age: null, gender: 'female',
     height_cm: null, weight_kg: null, eye_color: '', hair_color: '',
-    ethnicity: '', availability: 'both', languages: ['it'], services_tags: [],
+    ethnicity: '', availability: 'both', languages: ['en'], services_tags: [],
     phone: '', whatsapp_available: false, telegram_available: false,
   })
   const [saving, setSaving] = useState(false)
@@ -125,7 +124,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadData()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadData() {
@@ -136,11 +135,8 @@ export default function DashboardPage() {
     setUserEmail(user.email ?? '')
     setSettingsEmail(user.email ?? '')
 
-    // Load via server-side API route (respects RLS / cookie auth)
     let res = await fetch('/api/advisor/profile')
-
     if (res.status === 404) {
-      // Row doesn't exist yet (e.g. insert at sign-up was blocked by RLS) — create it now
       res = await fetch('/api/advisor/profile', { method: 'POST' })
     }
 
@@ -148,6 +144,22 @@ export default function DashboardPage() {
       const data = await res.json() as AdvisorRow
       setAdvisor(data)
       setForm(rowToForm(data))
+
+      // carica foto esistenti
+      const { data: mediaData } = await supabase
+        .from('advisor_media')
+        .select('id, url, cloudinary_id, is_cover')
+        .eq('advisor_id', data.id)
+        .order('sort_order', { ascending: true })
+
+      if (mediaData) {
+        setPhotos(mediaData.map((m) => ({
+          id: m.id,
+          url: m.url,
+          publicId: m.cloudinary_id,
+          isCover: m.is_cover,
+        })))
+      }
     } else {
       const json = await res.json().catch(() => ({}))
       console.error('[dashboard] load error:', json.error ?? res.status)
@@ -239,15 +251,11 @@ export default function DashboardPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
 
       {/* Header */}
-      <header
-        className="px-4 lg:px-8 h-14 flex items-center justify-between"
-        style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}
-      >
+      <header className="px-4 lg:px-8 h-14 flex items-center justify-between"
+        style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
         <Link href="/">
-          <span
-            className="text-xl font-black"
-            style={{ background: 'linear-gradient(135deg, var(--accent), #ff6eb4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
-          >
+          <span className="text-xl font-black"
+            style={{ background: 'linear-gradient(135deg, var(--accent), #ff6eb4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Lvvd
           </span>
         </Link>
@@ -260,35 +268,28 @@ export default function DashboardPage() {
       <div className="flex" style={{ maxWidth: 1400, margin: '0 auto' }}>
 
         {/* Sidebar */}
-        <aside
-          className="hidden lg:flex flex-col w-56 shrink-0 min-h-[calc(100vh-3.5rem)] py-6 px-4 gap-1"
-          style={{ borderRight: '1px solid var(--border)' }}
-        >
+        <aside className="hidden lg:flex flex-col w-56 shrink-0 min-h-[calc(100vh-3.5rem)] py-6 px-4 gap-1"
+          style={{ borderRight: '1px solid var(--border)' }}>
           {([
-            { id: 'overview', icon: '\u{1F4CA}', label: 'Overview' },
-            { id: 'profile', icon: '\u{1F464}', label: 'My profile' },
-            { id: 'subscription', icon: '\u{1F48E}', label: 'Subscription' },
-            { id: 'settings', icon: '\u2699\uFE0F', label: 'Settings' },
+            { id: 'overview', icon: '📊', label: 'Overview' },
+            { id: 'profile', icon: '👤', label: 'My profile' },
+            { id: 'subscription', icon: '💎', label: 'Subscription' },
+            { id: 'settings', icon: '⚙️', label: 'Settings' },
           ] as const).map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={{
                 background: activeTab === tab.id ? 'rgba(233,30,140,0.12)' : 'transparent',
                 color: activeTab === tab.id ? 'var(--accent)' : '#9ca3af',
                 border: `1px solid ${activeTab === tab.id ? 'rgba(233,30,140,0.25)' : 'transparent'}`,
-              }}
-            >
+              }}>
               <span>{tab.icon}</span>
               {tab.label}
             </button>
           ))}
           <div className="flex-1" />
-          <Link
-            href={`/profile/${advisor.slug}`}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-gray-500 hover:text-gray-300 transition-colors"
-          >
+          <Link href={`/profile/${advisor.slug}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-gray-500 hover:text-gray-300 transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
             </svg>
@@ -307,16 +308,13 @@ export default function DashboardPage() {
               { id: 'subscription', label: 'Subscription' },
               { id: 'settings', label: 'Settings' },
             ] as const).map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                 style={{
                   background: activeTab === tab.id ? 'var(--accent)' : 'var(--bg-card)',
                   color: activeTab === tab.id ? '#fff' : '#9ca3af',
                   border: `1px solid ${activeTab === tab.id ? 'var(--accent)' : 'var(--border)'}`,
-                }}
-              >
+                }}>
                 {tab.label}
               </button>
             ))}
@@ -324,12 +322,10 @@ export default function DashboardPage() {
 
           {/* Profile completeness banner */}
           {pct < 80 && activeTab === 'overview' && (
-            <div
-              className="mb-6 rounded-xl p-4 flex items-start gap-4"
-              style={{ background: 'rgba(233,30,140,0.08)', border: '1px solid rgba(233,30,140,0.25)' }}
-            >
+            <div className="mb-6 rounded-xl p-4 flex items-start gap-4"
+              style={{ background: 'rgba(233,30,140,0.08)', border: '1px solid rgba(233,30,140,0.25)' }}>
               <div className="flex-1 space-y-2">
-                <p className="text-sm font-semibold text-white">Complete your profile &mdash; {pct}%</p>
+                <p className="text-sm font-semibold text-white">Complete your profile — {pct}%</p>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   A complete profile attracts up to 3x more contacts. Add your bio, physical details, and contact info.
                 </p>
@@ -343,7 +339,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* OVERVIEW */}
+          {/* ── OVERVIEW ── */}
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <div>
@@ -355,10 +351,7 @@ export default function DashboardPage() {
                 {[
                   { label: 'Total views', value: advisor.views_count.toLocaleString() },
                   { label: 'Contacts received', value: advisor.contacts_count.toString() },
-                  {
-                    label: 'Profile status',
-                    value: advisor.status === 'active' ? 'Active' : advisor.status === 'pending' ? 'Pending review' : advisor.status,
-                  },
+                  { label: 'Profile status', value: advisor.status === 'active' ? 'Active' : advisor.status === 'pending' ? 'Pending review' : advisor.status },
                   { label: 'Identity verified', value: advisor.is_verified ? 'Yes' : 'No' },
                 ].map((s) => (
                   <div key={s.label} className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
@@ -369,11 +362,11 @@ export default function DashboardPage() {
               </div>
 
               <div className="rounded-xl p-6 flex flex-col sm:flex-row gap-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <div
-                  className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shrink-0"
-                  style={{ background: 'var(--bg-elevated)', border: '2px dashed rgba(255,255,255,0.1)' }}
-                >
-                  {'\u{1F464}'}
+                <div className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shrink-0 overflow-hidden"
+                  style={{ background: 'var(--bg-elevated)', border: '2px dashed rgba(255,255,255,0.1)' }}>
+                  {photos.find((p) => p.isCover)
+                    ? <img src={photos.find((p) => p.isCover)!.url} alt="" className="w-full h-full object-cover" />
+                    : '👤'}
                 </div>
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-3 flex-wrap">
@@ -381,32 +374,24 @@ export default function DashboardPage() {
                       {advisor.name}{advisor.age ? `, ${advisor.age}` : ''}
                     </h2>
                     {advisor.is_verified && (
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--success)', border: '1px solid rgba(34,197,94,0.3)' }}
-                      >
+                      <span className="text-xs px-2 py-0.5 rounded-full"
+                        style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)' }}>
                         Verified
                       </span>
                     )}
                   </div>
                   <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {advisor.city}{advisor.region ? ` · ${advisor.region}` : ''} &middot; {advisor.views_count.toLocaleString()} total views
+                    {advisor.city}{advisor.region ? ` · ${advisor.region}` : ''} · {advisor.views_count.toLocaleString()} total views
                   </p>
                   <div className="flex gap-2 flex-wrap">
-                    <button onClick={() => setActiveTab('profile')} className="btn-outline text-xs px-3 py-1.5">
-                      Edit profile
-                    </button>
-                    <Link href={`/profile/${advisor.slug}`} className="btn-ghost text-xs px-3 py-1.5">
-                      View listing
-                    </Link>
+                    <button onClick={() => setActiveTab('profile')} className="btn-outline text-xs px-3 py-1.5">Edit profile</button>
+                    <Link href={`/profile/${advisor.slug}`} className="btn-ghost text-xs px-3 py-1.5">View listing</Link>
                   </div>
                 </div>
               </div>
 
-              <div
-                className="rounded-xl p-6 relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))', border: '1px solid rgba(233,30,140,0.25)' }}
-              >
+              <div className="rounded-xl p-6 relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))', border: '1px solid rgba(233,30,140,0.25)' }}>
                 <h3 className="text-lg font-bold text-white mb-2">Go Diamond and triple your views</h3>
                 <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
                   Diamond profiles always appear at the top and receive on average 3x more contact requests.
@@ -418,48 +403,30 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* PROFILE EDIT */}
+          {/* ── PROFILE EDIT ── */}
           {activeTab === 'profile' && (
             <form onSubmit={handleSaveProfile} className="space-y-6 max-w-2xl">
               <h1 className="text-2xl font-black text-white">Edit profile</h1>
 
-              {/* Photo upload suggestion (not yet implemented) */}
-              <div
-                className="rounded-xl p-5 flex items-center gap-5"
-                style={{ background: 'rgba(233,30,140,0.05)', border: '1px dashed rgba(233,30,140,0.35)' }}
-              >
-                <div
-                  className="w-16 h-16 rounded-xl flex items-center justify-center text-3xl shrink-0"
-                  style={{ background: 'var(--bg-elevated)' }}
-                >
-                  {'\u{1F4F7}'}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">Upload your photos</p>
+              {/* Photo upload */}
+              <div className="rounded-xl p-5 space-y-4"
+                style={{ background: 'rgba(233,30,140,0.05)', border: '1px dashed rgba(233,30,140,0.35)' }}>
+                <div>
+                  <p className="text-sm font-semibold text-white">Photos</p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Profiles with photos receive up to 10x more contacts. Up to 10 photos &mdash; JPG / PNG / WebP.
+                    Profiles with photos receive up to 10x more contacts. Up to 10 photos — JPG / PNG / WebP.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  className="btn-ghost text-xs px-4 py-2 shrink-0"
-                  style={{ opacity: 0.45, cursor: 'not-allowed' }}
-                  title="Photo upload coming soon"
-                >
-                  Upload photos
-                </button>
+                <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={10} />
               </div>
 
               {saveMsg && (
-                <div
-                  className="text-xs px-4 py-3 rounded-lg"
+                <div className="text-xs px-4 py-3 rounded-lg"
                   style={{
                     background: saveMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                     border: `1px solid ${saveMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
                     color: saveMsg.type === 'success' ? '#86efac' : '#fca5a5',
-                  }}
-                >
+                  }}>
                   {saveMsg.text}
                 </div>
               )}
@@ -473,47 +440,27 @@ export default function DashboardPage() {
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
                       Name / Alias <span style={{ color: 'var(--accent)' }}>*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={form.name}
-                      onChange={(e) => upd('name', e.target.value)}
-                      className="input-dark"
-                    />
+                    <input type="text" required value={form.name} onChange={(e) => upd('name', e.target.value)} className="input-dark" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
                       City <span style={{ color: 'var(--accent)' }}>*</span>
                     </label>
-                    <CityAutocomplete
-                      city={form.city}
-                      region={form.region}
-                      required
-                      onChange={(city, region) => setForm((f) => ({ ...f, city, region }))}
-                    />
+                    <CityAutocomplete city={form.city} region={form.region} required
+                      onChange={(city, region) => setForm((f) => ({ ...f, city, region }))} />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Region</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={form.region}
-                    placeholder="Auto-filled when city is selected"
-                    className="input-dark opacity-70"
-                  />
+                  <input type="text" readOnly value={form.region} placeholder="Auto-filled when city is selected" className="input-dark opacity-70" />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Bio</label>
-                  <textarea
-                    rows={5}
-                    value={form.bio}
-                    onChange={(e) => upd('bio', e.target.value)}
-                    placeholder="Write a short description about yourself - personality, what you offer, how to contact you..."
-                    className="input-dark resize-none"
-                  />
+                  <textarea rows={5} value={form.bio} onChange={(e) => upd('bio', e.target.value)}
+                    placeholder="Write a short description about yourself..."
+                    className="input-dark resize-none" />
                 </div>
               </div>
 
@@ -524,50 +471,28 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Age</label>
-                    <input
-                      type="number"
-                      min={18}
-                      max={80}
-                      value={form.age ?? ''}
+                    <input type="number" min={18} max={80} value={form.age ?? ''}
                       onChange={(e) => upd('age', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="25"
-                      className="input-dark"
-                    />
+                      placeholder="25" className="input-dark" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Height (cm)</label>
-                    <input
-                      type="number"
-                      min={140}
-                      max={210}
-                      value={form.height_cm ?? ''}
+                    <input type="number" min={140} max={210} value={form.height_cm ?? ''}
                       onChange={(e) => upd('height_cm', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="168"
-                      className="input-dark"
-                    />
+                      placeholder="168" className="input-dark" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Weight (kg)</label>
-                    <input
-                      type="number"
-                      min={40}
-                      max={150}
-                      value={form.weight_kg ?? ''}
+                    <input type="number" min={40} max={150} value={form.weight_kg ?? ''}
                       onChange={(e) => upd('weight_kg', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="55"
-                      className="input-dark"
-                    />
+                      placeholder="55" className="input-dark" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
-                    <select
-                      value={form.gender}
-                      onChange={(e) => upd('gender', e.target.value as GenderType)}
-                      className="input-dark"
-                    >
+                    <select value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark">
                       <option value="female">Female</option>
                       <option value="male">Male</option>
                       <option value="other">Other / Trans</option>
@@ -575,88 +500,55 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Ethnicity</label>
-                    <input
-                      type="text"
-                      value={form.ethnicity}
-                      onChange={(e) => upd('ethnicity', e.target.value)}
-                      placeholder="e.g. European, Latina, Asian..."
-                      className="input-dark"
-                    />
+                    <input type="text" value={form.ethnicity} onChange={(e) => upd('ethnicity', e.target.value)}
+                      placeholder="e.g. European, Latina, Asian..." className="input-dark" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Hair color</label>
-                    <input
-                      type="text"
-                      value={form.hair_color}
-                      onChange={(e) => upd('hair_color', e.target.value)}
-                      placeholder="e.g. Blonde, Brunette, Red..."
-                      className="input-dark"
-                    />
+                    <input type="text" value={form.hair_color} onChange={(e) => upd('hair_color', e.target.value)}
+                      placeholder="e.g. Blonde, Brunette, Red..." className="input-dark" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Eye color</label>
-                    <input
-                      type="text"
-                      value={form.eye_color}
-                      onChange={(e) => upd('eye_color', e.target.value)}
-                      placeholder="e.g. Blue, Brown, Green..."
-                      className="input-dark"
-                    />
+                    <input type="text" value={form.eye_color} onChange={(e) => upd('eye_color', e.target.value)}
+                      placeholder="e.g. Blue, Brown, Green..." className="input-dark" />
                   </div>
                 </div>
               </div>
 
               {/* Contact & availability */}
               <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Contact &amp; availability</h3>
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Contact & availability</h3>
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">
-                    Phone{' '}
-                    <span style={{ color: 'var(--text-muted)' }}>(visible to registered users only)</span>
+                    Phone <span style={{ color: 'var(--text-muted)' }}>(visible to registered users only)</span>
                   </label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => upd('phone', e.target.value)}
-                    placeholder="+39 3XX XXX XXXX"
-                    className="input-dark"
-                  />
+                  <input type="tel" value={form.phone} onChange={(e) => upd('phone', e.target.value)}
+                    placeholder="+31 6XX XXX XXXX" className="input-dark" />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Availability</label>
-                  <select
-                    value={form.availability}
-                    onChange={(e) => upd('availability', e.target.value as AvailabilityType)}
-                    className="input-dark"
-                  >
+                  <select value={form.availability} onChange={(e) => upd('availability', e.target.value as AvailabilityType)} className="input-dark">
                     <option value="incall">Incall only</option>
                     <option value="outcall">Outcall only</option>
-                    <option value="both">Both (incall &amp; outcall)</option>
+                    <option value="both">Both (incall & outcall)</option>
                   </select>
                 </div>
 
                 <div className="flex flex-wrap gap-6">
                   <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.whatsapp_available}
-                      onChange={(e) => upd('whatsapp_available', e.target.checked)}
-                      className="accent-pink-500"
-                    />
+                    <input type="checkbox" checked={form.whatsapp_available}
+                      onChange={(e) => upd('whatsapp_available', e.target.checked)} className="accent-pink-500" />
                     <span className="text-sm text-gray-300">WhatsApp available</span>
                   </label>
                   <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.telegram_available}
-                      onChange={(e) => upd('telegram_available', e.target.checked)}
-                      className="accent-pink-500"
-                    />
+                    <input type="checkbox" checked={form.telegram_available}
+                      onChange={(e) => upd('telegram_available', e.target.checked)} className="accent-pink-500" />
                     <span className="text-sm text-gray-300">Telegram available</span>
                   </label>
                 </div>
@@ -666,14 +558,11 @@ export default function DashboardPage() {
                 <button type="submit" disabled={saving} className="btn-accent px-8 py-2.5 text-sm">
                   {saving ? 'Saving...' : 'Save changes'}
                 </button>
-                {saveMsg?.type === 'success' && (
-                  <span className="text-xs font-medium" style={{ color: 'var(--success)' }}>Saved</span>
-                )}
               </div>
             </form>
           )}
 
-          {/* SUBSCRIPTION */}
+          {/* ── SUBSCRIPTION ── */}
           {activeTab === 'subscription' && (
             <div className="space-y-6 max-w-3xl">
               <h1 className="text-2xl font-black text-white">Subscription</h1>
@@ -695,16 +584,11 @@ export default function DashboardPage() {
                     cta: 'Upgrade to Diamond', current: false, highlight: true,
                   },
                 ] as const).map((plan) => (
-                  <div
-                    key={plan.level}
-                    className="rounded-xl p-5 flex flex-col gap-4"
+                  <div key={plan.level} className="rounded-xl p-5 flex flex-col gap-4"
                     style={{
-                      background: plan.highlight
-                        ? 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))'
-                        : 'var(--bg-card)',
+                      background: plan.highlight ? 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))' : 'var(--bg-card)',
                       border: `1px solid ${plan.highlight ? 'rgba(233,30,140,0.4)' : plan.current ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
-                    }}
-                  >
+                    }}>
                     {plan.highlight && (
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full self-start" style={{ background: 'var(--accent)', color: '#fff' }}>
                         RECOMMENDED
@@ -719,71 +603,53 @@ export default function DashboardPage() {
                     <ul className="space-y-2 flex-1">
                       {plan.features.map((f) => (
                         <li key={f} className="flex items-center gap-2 text-sm" style={{ color: '#d1d5db' }}>
-                          <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--success)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 shrink-0" style={{ color: '#4ade80' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                           </svg>
                           {f}
                         </li>
                       ))}
                     </ul>
-                    <button
-                      disabled={plan.current}
-                      className={plan.current ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}
-                    >
+                    <button disabled={plan.current} className={plan.current ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}>
                       {plan.current ? 'Current plan' : plan.cta}
                     </button>
                   </div>
                 ))}
               </div>
               <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
-                Secure payment via Stripe &middot; Cancel anytime &middot; No commitment
+                Secure payment via Stripe · Cancel anytime · No commitment
               </p>
             </div>
           )}
 
-          {/* SETTINGS */}
+          {/* ── SETTINGS ── */}
           {activeTab === 'settings' && (
             <div className="space-y-6 max-w-lg">
               <h1 className="text-2xl font-black text-white">Settings</h1>
 
-              <form
-                onSubmit={handleSaveSettings}
-                className="rounded-xl p-6 space-y-5"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-              >
+              <form onSubmit={handleSaveSettings} className="rounded-xl p-6 space-y-5"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                 <h3 className="font-semibold text-gray-200">Account security</h3>
 
                 {settingsMsg && (
-                  <div
-                    className="text-xs px-4 py-3 rounded-lg"
+                  <div className="text-xs px-4 py-3 rounded-lg"
                     style={{
                       background: settingsMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
                       border: `1px solid ${settingsMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
                       color: settingsMsg.type === 'success' ? '#86efac' : '#fca5a5',
-                    }}
-                  >
+                    }}>
                     {settingsMsg.text}
                   </div>
                 )}
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    value={settingsEmail}
-                    onChange={(e) => setSettingsEmail(e.target.value)}
-                    className="input-dark"
-                  />
+                  <input type="email" value={settingsEmail} onChange={(e) => setSettingsEmail(e.target.value)} className="input-dark" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">New password</label>
-                  <input
-                    type="password"
-                    value={settingsPassword}
-                    onChange={(e) => setSettingsPassword(e.target.value)}
-                    placeholder="Leave blank to keep current"
-                    className="input-dark"
-                  />
+                  <input type="password" value={settingsPassword} onChange={(e) => setSettingsPassword(e.target.value)}
+                    placeholder="Leave blank to keep current" className="input-dark" />
                 </div>
                 <button type="submit" disabled={settingsSaving} className="btn-outline text-sm px-4 py-2">
                   {settingsSaving ? 'Saving...' : 'Update security'}
@@ -793,12 +659,9 @@ export default function DashboardPage() {
               <div className="rounded-xl p-6 space-y-4" style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
                 <h3 className="font-semibold" style={{ color: '#fca5a5' }}>Danger zone</h3>
                 <p className="text-sm text-gray-400">Deleting your account will permanently remove all your data.</p>
-                <button
-                  type="button"
-                  onClick={() => alert('Please contact support to delete your account.')}
+                <button type="button" onClick={() => alert('Please contact support to delete your account.')}
                   className="text-sm px-4 py-2 rounded-lg border transition-all"
-                  style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}
-                >
+                  style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}>
                   Delete account
                 </button>
               </div>
