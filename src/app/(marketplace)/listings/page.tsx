@@ -40,5 +40,12 @@ export default async function ListingsPage({ searchParams }: Props) {
     }
   }
 
-  return <ListingsClient initialProfiles={profiles} cities={cities} initialFilters={initialFilters} />
+  return (
+    <ListingsClient
+      key={JSON.stringify(initialFilters)}
+      initialProfiles={profiles}
+      cities={cities}
+      initialFilters={initialFilters}
+    />
+  )
 }
