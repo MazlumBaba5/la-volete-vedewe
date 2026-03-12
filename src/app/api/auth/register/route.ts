@@ -1,5 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import {
+  deriveAvailability,
+  isAdvisorEthnicity,
+  isSexOrientation,
+  sanitizeAvailabilitySlots,
+  sanitizeDateTypes,
+  sanitizeRates,
+  sanitizeServices,
+} from '@/lib/advisor-profile-options'
 import { findDutchCity } from '@/lib/netherlands-cities'
 
 type Body = {
@@ -8,8 +17,18 @@ type Body = {
   role: 'guest' | 'advisor'
   name?: string
   advisorCategory?: 'woman' | 'man' | 'couple' | 'shemale'
+  age?: number
+  gender?: 'female' | 'male' | 'shemale'
+  ethnicity?: string
   city?: string
   region?: string
+  bio?: string
+  sexualOrientation?: 'Straight' | 'Lesbian' | 'Gay' | 'Bisex'
+  dateTypes?: string[]
+  servicesTags?: string[]
+  incallRates?: unknown[]
+  outcallRates?: unknown[]
+  availabilitySlots?: string[]
   phone?: string
 }
 
@@ -30,8 +49,56 @@ export async function POST(req: Request) {
     }
 
     const selectedCity = findDutchCity(body.city)
-    if (body.role === 'advisor' && !selectedCity) {
-      return NextResponse.json({ error: 'Please select a valid city in the Netherlands' }, { status: 400 })
+    const dateTypes = sanitizeDateTypes(body.dateTypes)
+    const servicesTags = sanitizeServices(body.servicesTags)
+    const availabilitySlots = sanitizeAvailabilitySlots(body.availabilitySlots)
+    const incallRates = sanitizeRates(body.incallRates, 'incall')
+    const outcallRates = sanitizeRates(body.outcallRates, 'outcall')
+
+    if (body.role === 'advisor') {
+      if (!selectedCity) {
+        return NextResponse.json({ error: 'Please select a valid city in the Netherlands' }, { status: 400 })
+      }
+
+      if (!Number.isInteger(body.age) || Number(body.age) < 18 || Number(body.age) > 80) {
+        return NextResponse.json({ error: 'Please enter a valid age between 18 and 80' }, { status: 400 })
+      }
+
+      if (!body.ethnicity || !isAdvisorEthnicity(body.ethnicity)) {
+        return NextResponse.json({ error: 'Please select a valid ethnicity' }, { status: 400 })
+      }
+
+      if (!body.gender || !['female', 'male', 'shemale'].includes(body.gender)) {
+        return NextResponse.json({ error: 'Please select a valid gender' }, { status: 400 })
+      }
+
+      if (!body.bio?.trim()) {
+        return NextResponse.json({ error: 'Profile description is required' }, { status: 400 })
+      }
+
+      if (!body.sexualOrientation || !isSexOrientation(body.sexualOrientation)) {
+        return NextResponse.json({ error: 'Please select a valid sex orientation' }, { status: 400 })
+      }
+
+      if (dateTypes.length === 0) {
+        return NextResponse.json({ error: 'Select at least one type of date' }, { status: 400 })
+      }
+
+      if (servicesTags.length === 0) {
+        return NextResponse.json({ error: 'Select at least one available service' }, { status: 400 })
+      }
+
+      if (availabilitySlots.length === 0) {
+        return NextResponse.json({ error: 'Select at least one availability slot' }, { status: 400 })
+      }
+
+      if (dateTypes.includes('Incall') && incallRates.length === 0) {
+        return NextResponse.json({ error: 'Add at least one InCall price' }, { status: 400 })
+      }
+
+      if (dateTypes.includes('Outcall') && outcallRates.length === 0) {
+        return NextResponse.json({ error: 'Add at least one OutCall price' }, { status: 400 })
+      }
     }
 
     const supabase = await createClient()
@@ -44,8 +111,18 @@ export async function POST(req: Request) {
           role: body.role,
           name: body.name?.trim() || '',
           advisor_category: body.advisorCategory ?? 'woman',
+          age: body.age ?? null,
+          gender: body.gender ?? 'female',
+          ethnicity: body.ethnicity?.trim() ?? '',
           city: selectedCity?.city ?? '',
           region: selectedCity?.region ?? '',
+          bio: body.bio?.trim() ?? '',
+          sexual_orientation: body.sexualOrientation ?? '',
+          date_types: dateTypes,
+          services_tags: servicesTags,
+          incall_rates: incallRates,
+          outcall_rates: outcallRates,
+          availability_slots: availabilitySlots,
           phone: body.phone?.trim() || '',
         },
       },
@@ -73,6 +150,17 @@ export async function POST(req: Request) {
         advisor_category: body.advisorCategory ?? 'woman',
         city,
         region: selectedCity?.region || null,
+        age: body.age ?? null,
+        gender: body.gender ?? 'female',
+        ethnicity: body.ethnicity?.trim() || null,
+        bio: body.bio?.trim() || null,
+        sexual_orientation: body.sexualOrientation ?? null,
+        date_types: dateTypes,
+        services_tags: servicesTags,
+        incall_rates: incallRates,
+        outcall_rates: outcallRates,
+        availability_slots: availabilitySlots,
+        availability: deriveAvailability(dateTypes),
         phone: body.phone?.trim() || null,
         status: 'active',
       }])

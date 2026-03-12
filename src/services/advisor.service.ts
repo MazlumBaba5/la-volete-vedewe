@@ -1,5 +1,6 @@
 // src/services/advisor.service.ts
 import { createAdminClient } from '@/lib/supabase/server'
+import { toPublicRates } from '@/lib/advisor-profile-options'
 import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 import { findDutchCity } from '@/lib/netherlands-cities'
 import type { Profile, ProfilePhoto, Category, City } from '@/types'
@@ -18,7 +19,14 @@ const PUBLIC_COLUMNS = `
   country,
   languages,
   bio,
+  height_cm,
+  weight_kg,
+  eye_color,
+  hair_color,
+  ethnicity,
   services_tags,
+  incall_rates,
+  outcall_rates,
   availability,
   is_verified,
   is_featured,
@@ -68,13 +76,13 @@ function mapRow(row: Record<string, unknown>, subscriptionTier?: string): Profil
     photos,
     services: (row.services_tags as string[]) || [],
     attributes: {
-      height: 0,
-      weight: 0,
-      hair: '',
-      eyes: '',
-      ethnicity: '',
+      height: (row.height_cm as number) || 0,
+      weight: (row.weight_kg as number) || 0,
+      hair: (row.hair_color as string) || '',
+      eyes: (row.eye_color as string) || '',
+      ethnicity: (row.ethnicity as string) || '',
     },
-    rates: [],
+    rates: toPublicRates(row.incall_rates, row.outcall_rates),
     availability: (row.availability as Profile['availability']) || 'available',
     isVerified: (row.is_verified as boolean) || false,
     isOnline: false,

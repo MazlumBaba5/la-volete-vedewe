@@ -4,6 +4,22 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import {
+  ADVISOR_ETHNICITIES,
+  AVAILABILITY_DAYS,
+  AVAILABILITY_TIME_OPTIONS,
+  BDSM_SERVICE_OPTIONS,
+  buildRatesFromForm,
+  createEmptyRateState,
+  DATE_TYPE_OPTIONS,
+  GENERAL_SERVICE_OPTIONS,
+  MASSAGE_SERVICE_OPTIONS,
+  PRICE_DURATION_OPTIONS,
+  ratesToFormState,
+  type PriceCode,
+  SEX_ORIENTATION_OPTIONS,
+  VIRTUAL_SERVICE_OPTIONS,
+} from '@/lib/advisor-profile-options'
 import CityAutocomplete from '@/components/ui/CityAutocomplete'
 import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
 
@@ -29,9 +45,14 @@ type AdvisorRow = {
   eye_color: string | null
   hair_color: string | null
   ethnicity: string | null
+  sexual_orientation: string | null
   availability: AvailabilityType
+  date_types: string[]
   languages: string[]
   services_tags: string[]
+  incall_rates: unknown[]
+  outcall_rates: unknown[]
+  availability_slots: string[]
   phone: string | null
   whatsapp_available: boolean
   telegram_available: boolean
@@ -57,9 +78,14 @@ type ProfileForm = {
   eye_color: string
   hair_color: string
   ethnicity: string
+  sexual_orientation: string
   availability: AvailabilityType
+  date_types: string[]
   languages: string[]
   services_tags: string[]
+  incall_rates: Record<PriceCode, string>
+  outcall_rates: Record<PriceCode, string>
+  availability_slots: string[]
   phone: string
   whatsapp_available: boolean
   telegram_available: boolean
@@ -95,7 +121,7 @@ type BillingSummary = {
 function profileCompleteness(advisor: AdvisorRow): number {
   const optional: (keyof AdvisorRow)[] = [
     'bio', 'age', 'height_cm', 'weight_kg',
-    'eye_color', 'hair_color', 'ethnicity', 'phone',
+    'eye_color', 'hair_color', 'ethnicity', 'sexual_orientation', 'phone',
   ]
   const filled = optional.filter((f) => {
     const v = advisor[f]
@@ -118,9 +144,14 @@ function rowToForm(r: AdvisorRow): ProfileForm {
     eye_color: r.eye_color ?? '',
     hair_color: r.hair_color ?? '',
     ethnicity: r.ethnicity ?? '',
+    sexual_orientation: r.sexual_orientation ?? '',
     availability: r.availability ?? 'both',
+    date_types: r.date_types ?? [],
     languages: r.languages ?? ['en'],
     services_tags: r.services_tags ?? [],
+    incall_rates: ratesToFormState(r.incall_rates ?? []),
+    outcall_rates: ratesToFormState(r.outcall_rates ?? []),
+    availability_slots: r.availability_slots ?? [],
     phone: r.phone ?? '',
     whatsapp_available: r.whatsapp_available ?? false,
     telegram_available: r.telegram_available ?? false,
@@ -153,7 +184,8 @@ export default function DashboardPage() {
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', advisor_category: 'woman', city: '', region: '', age: null, gender: 'female',
     height_cm: null, weight_kg: null, eye_color: '', hair_color: '',
-    ethnicity: '', availability: 'both', languages: ['en'], services_tags: [],
+    ethnicity: '', sexual_orientation: '', availability: 'both', date_types: [], languages: ['en'], services_tags: [],
+    incall_rates: createEmptyRateState(), outcall_rates: createEmptyRateState(), availability_slots: [],
     phone: '', whatsapp_available: false, telegram_available: false,
   })
   const [saving, setSaving] = useState(false)
@@ -255,15 +287,39 @@ export default function DashboardPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  function toggleMultiField(key: 'date_types' | 'services_tags' | 'availability_slots', value: string) {
+    setForm((current) => ({
+      ...current,
+      [key]: current[key].includes(value)
+        ? current[key].filter((item) => item !== value)
+        : [...current[key], value],
+    }))
+  }
+
+  function setRateValue(scope: 'incall_rates' | 'outcall_rates', code: PriceCode, value: string) {
+    setForm((current) => ({
+      ...current,
+      [scope]: {
+        ...current[scope],
+        [code]: value,
+      },
+    }))
+  }
+
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     setSaveMsg(null)
     try {
+      const payload = {
+        ...form,
+        incall_rates: buildRatesFromForm(form.incall_rates, 'incall'),
+        outcall_rates: buildRatesFromForm(form.outcall_rates, 'outcall'),
+      }
       const res = await fetch('/api/advisor/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       const json = await res.json()
       if (!res.ok) {
@@ -356,6 +412,13 @@ export default function DashboardPage() {
   }
 
   const pct = profileCompleteness(advisor)
+  const ageLocked = advisor.age !== null
+  const ethnicityLocked = !!advisor.ethnicity
+  const hasBdsm = form.date_types.includes('Bdsm')
+  const hasMassage = form.date_types.includes('Massage')
+  const hasSexCam = form.date_types.includes('SexCam')
+  const hasIncall = form.date_types.includes('Incall')
+  const hasOutcall = form.date_types.includes('Outcall')
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -515,7 +578,7 @@ export default function DashboardPage() {
 
           {/* ── PROFILE EDIT ── */}
           {activeTab === 'profile' && (
-            <form onSubmit={handleSaveProfile} className="space-y-6 max-w-2xl">
+            <form onSubmit={handleSaveProfile} className="space-y-6 max-w-5xl">
               <h1 className="text-2xl font-black text-white">Edit profile</h1>
 
               {/* Photo upload */}
@@ -541,105 +604,221 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Basic info */}
-              <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Basic information</h3>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Basic information</h3>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
                       Name / Alias <span style={{ color: 'var(--accent)' }}>*</span>
                     </label>
                     <input type="text" required value={form.name} onChange={(e) => upd('name', e.target.value)} className="input-dark" />
                   </div>
+
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">
                       City <span style={{ color: 'var(--accent)' }}>*</span>
                     </label>
-                    <CityAutocomplete city={form.city} region={form.region} required
-                      onChange={(city, region) => setForm((f) => ({ ...f, city, region }))} />
+                    <CityAutocomplete city={form.city} region={form.region} required onChange={(city, region) => setForm((f) => ({ ...f, city, region }))} />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
-                  <select value={form.advisor_category} onChange={(e) => upd('advisor_category', e.target.value as AdvisorCategory)} className="input-dark">
-                    <option value="woman">Woman</option>
-                    <option value="man">Man</option>
-                    <option value="couple">Couple</option>
-                    <option value="shemale">Shemale</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Region</label>
-                  <input type="text" readOnly value={form.region} placeholder="Auto-filled when city is selected" className="input-dark opacity-70" />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Bio</label>
-                  <textarea rows={5} value={form.bio} onChange={(e) => upd('bio', e.target.value)}
-                    placeholder="Write a short description about yourself..."
-                    className="input-dark resize-none" />
-                </div>
-              </div>
-
-              {/* Physical attributes */}
-              <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Physical attributes</h3>
-
-                <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Age</label>
-                    <input type="number" min={18} max={80} value={form.age ?? ''}
-                      onChange={(e) => upd('age', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="25" className="input-dark" />
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Region</label>
+                    <input type="text" readOnly value={form.region} placeholder="Auto-filled when city is selected" className="input-dark opacity-70" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Height (cm)</label>
-                    <input type="number" min={140} max={210} value={form.height_cm ?? ''}
-                      onChange={(e) => upd('height_cm', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="168" className="input-dark" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Weight (kg)</label>
-                    <input type="number" min={40} max={150} value={form.weight_kg ?? ''}
-                      onChange={(e) => upd('weight_kg', e.target.value ? Number(e.target.value) : null)}
-                      placeholder="55" className="input-dark" />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
-                    <select value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark">
-                      <option value="female">Female</option>
-                      <option value="male">Male</option>
-                      <option value="shemale">Shemale / Trans</option>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
+                    <select value={form.advisor_category} onChange={(e) => upd('advisor_category', e.target.value as AdvisorCategory)} className="input-dark">
+                      <option value="woman">Woman</option>
+                      <option value="man">Man</option>
+                      <option value="couple">Couple</option>
+                      <option value="shemale">Shemale</option>
                     </select>
                   </div>
+
                   <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Ethnicity</label>
-                    <input type="text" value={form.ethnicity} onChange={(e) => upd('ethnicity', e.target.value)}
-                      placeholder="e.g. European, Latina, Asian..." className="input-dark" />
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
+                    <textarea rows={6} required value={form.bio} onChange={(e) => upd('bio', e.target.value)} placeholder="Write a short description about yourself..." className="input-dark resize-none" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Hair color</label>
-                    <input type="text" value={form.hair_color} onChange={(e) => upd('hair_color', e.target.value)}
-                      placeholder="e.g. Blonde, Brunette, Red..." className="input-dark" />
+                <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Identity & body</h3>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Age</label>
+                      <input type="number" min={18} max={80} required disabled={ageLocked} value={form.age ?? ''}
+                        onChange={(e) => upd('age', e.target.value ? Number(e.target.value) : null)}
+                        placeholder="25" className="input-dark disabled:opacity-60" />
+                      {ageLocked && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Locked after first save.</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
+                      <select value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark">
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                        <option value="shemale">Shemale / Trans</option>
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Eye color</label>
-                    <input type="text" value={form.eye_color} onChange={(e) => upd('eye_color', e.target.value)}
-                      placeholder="e.g. Blue, Brown, Green..." className="input-dark" />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Ethnicity</label>
+                      <select disabled={ethnicityLocked} value={form.ethnicity} onChange={(e) => upd('ethnicity', e.target.value)} className="input-dark disabled:opacity-60">
+                        <option value="">Select ethnicity</option>
+                        {ADVISOR_ETHNICITIES.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                      {ethnicityLocked && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Locked after first save.</p>}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Sex orientation</label>
+                      <select value={form.sexual_orientation} onChange={(e) => upd('sexual_orientation', e.target.value)} className="input-dark">
+                        <option value="">Select orientation</option>
+                        {SEX_ORIENTATION_OPTIONS.map((item) => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Height (cm)</label>
+                      <input type="number" min={140} max={210} value={form.height_cm ?? ''}
+                        onChange={(e) => upd('height_cm', e.target.value ? Number(e.target.value) : null)}
+                        placeholder="168" className="input-dark" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Weight (kg)</label>
+                      <input type="number" min={40} max={150} value={form.weight_kg ?? ''}
+                        onChange={(e) => upd('weight_kg', e.target.value ? Number(e.target.value) : null)}
+                        placeholder="55" className="input-dark" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Hair color</label>
+                      <input type="text" value={form.hair_color} onChange={(e) => upd('hair_color', e.target.value)} placeholder="e.g. Blonde, Brunette, Red..." className="input-dark" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-400 mb-1.5">Eye color</label>
+                      <input type="text" value={form.eye_color} onChange={(e) => upd('eye_color', e.target.value)} placeholder="e.g. Blue, Brown, Green..." className="input-dark" />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Contact & availability */}
+              <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Type of date</h3>
+                <div className="flex flex-wrap gap-2">
+                  {DATE_TYPE_OPTIONS.map((item) => {
+                    const active = form.date_types.includes(item)
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => toggleMultiField('date_types', item)}
+                        className="rounded-full px-4 py-2 text-sm transition-all"
+                        style={{
+                          background: active ? 'rgba(233,30,140,0.15)' : 'var(--bg-elevated)',
+                          border: `1px solid ${active ? 'rgba(233,30,140,0.45)' : 'var(--border)'}`,
+                          color: active ? '#fff' : '#cbd5e1',
+                        }}
+                      >
+                        {item}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {(hasIncall || hasOutcall) && (
+                <div className="rounded-xl p-6 space-y-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Prices</h3>
+                  {hasIncall && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-white">InCall prices</h4>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {PRICE_DURATION_OPTIONS.map((option) => (
+                          <label key={`incall-${option.code}`} className="space-y-1">
+                            <span className="block text-xs text-gray-400">{option.label}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={form.incall_rates[option.code]}
+                              onChange={(e) => setRateValue('incall_rates', option.code, e.target.value)}
+                              placeholder="EUR"
+                              className="input-dark"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {hasOutcall && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-semibold text-white">OutCall prices</h4>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {PRICE_DURATION_OPTIONS.map((option) => (
+                          <label key={`outcall-${option.code}`} className="space-y-1">
+                            <span className="block text-xs text-gray-400">{option.label}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={form.outcall_rates[option.code]}
+                              onChange={(e) => setRateValue('outcall_rates', option.code, e.target.value)}
+                              placeholder="EUR"
+                              className="input-dark"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-xl p-6 space-y-6" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Services available</h3>
+
+                {([
+                  { title: 'General services', items: GENERAL_SERVICE_OPTIONS },
+                  ...(hasBdsm ? [{ title: 'BDSM services', items: BDSM_SERVICE_OPTIONS }] : []),
+                  ...(hasMassage ? [{ title: 'Erotic massage services', items: MASSAGE_SERVICE_OPTIONS }] : []),
+                  ...(hasSexCam ? [{ title: 'Virtual sex services', items: VIRTUAL_SERVICE_OPTIONS }] : []),
+                ] as const).map((section) => (
+                  <div key={section.title} className="space-y-3">
+                    <h4 className="text-sm font-semibold text-white">{section.title}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {section.items.map((item) => {
+                        const active = form.services_tags.includes(item)
+                        return (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => toggleMultiField('services_tags', item)}
+                            className="rounded-full px-3 py-1.5 text-xs transition-all"
+                            style={{
+                              background: active ? 'rgba(233,30,140,0.15)' : 'var(--bg-elevated)',
+                              border: `1px solid ${active ? 'rgba(233,30,140,0.45)' : 'var(--border)'}`,
+                              color: active ? '#fff' : '#cbd5e1',
+                            }}
+                          >
+                            {item}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                 <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Contact & availability</h3>
 
@@ -647,17 +826,36 @@ export default function DashboardPage() {
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">
                     Phone <span style={{ color: 'var(--text-muted)' }}>(visible to registered users only)</span>
                   </label>
-                  <input type="tel" value={form.phone} onChange={(e) => upd('phone', e.target.value)}
-                    placeholder="+31 6XX XXX XXXX" className="input-dark" />
+                  <input type="tel" value={form.phone} onChange={(e) => upd('phone', e.target.value)} placeholder="+31 6XX XXX XXXX" className="input-dark" />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Availability</label>
-                  <select value={form.availability} onChange={(e) => upd('availability', e.target.value as AvailabilityType)} className="input-dark">
-                    <option value="incall">Incall only</option>
-                    <option value="outcall">Outcall only</option>
-                    <option value="both">Both (incall & outcall)</option>
-                  </select>
+                <div className="space-y-4">
+                  {AVAILABILITY_DAYS.map((day) => (
+                    <div key={day} className="space-y-2">
+                      <p className="text-sm font-medium text-white">{day}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {AVAILABILITY_TIME_OPTIONS.map((slot) => {
+                          const value = `${day} - ${slot}`
+                          const active = form.availability_slots.includes(value)
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => toggleMultiField('availability_slots', value)}
+                              className="rounded-full px-3 py-1.5 text-xs transition-all"
+                              style={{
+                                background: active ? 'rgba(233,30,140,0.15)' : 'var(--bg-elevated)',
+                                border: `1px solid ${active ? 'rgba(233,30,140,0.45)' : 'var(--border)'}`,
+                                color: active ? '#fff' : '#cbd5e1',
+                              }}
+                            >
+                              {slot}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex flex-wrap gap-6">
