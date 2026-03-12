@@ -42,6 +42,7 @@ type RegisterForm = {
   outcallRates: Record<PriceCode, string>;
   availabilitySlots: string[];
   phone: string;
+  whatsappAvailable: boolean;
   agreeTerms: boolean;
   agreeAge: boolean;
 };
@@ -152,6 +153,7 @@ export default function RegisterPage() {
     outcallRates: createEmptyRateState(),
     availabilitySlots: [],
     phone: '',
+    whatsappAvailable: false,
     agreeTerms: false,
     agreeAge: false,
   });
@@ -214,6 +216,7 @@ export default function RegisterPage() {
           outcallRates: buildRatesFromForm(form.outcallRates, 'outcall'),
           availabilitySlots: form.availabilitySlots,
           phone: form.phone,
+          whatsappAvailable: form.whatsappAvailable,
         }),
       });
 
@@ -442,6 +445,15 @@ export default function RegisterPage() {
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Phone</label>
                   <input type="tel" value={form.phone} onChange={(e) => updateField('phone', e.target.value)} placeholder="+31 6XX XXX XXXX" className="input-dark" />
                 </div>
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.whatsappAvailable}
+                    onChange={(e) => updateField('whatsappAvailable', e.target.checked)}
+                    className="accent-pink-500"
+                  />
+                  <span className="text-sm text-gray-300">WhatsApp available</span>
+                </label>
               </div>
             </div>
 

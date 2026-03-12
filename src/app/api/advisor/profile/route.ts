@@ -99,6 +99,7 @@ export async function POST() {
     const metaCity = findDutchCity(meta.city as string | undefined)
     const city = metaCity?.city || 'Amsterdam'
     const phone = (meta.phone as string | undefined)?.trim() || null
+    const whatsappAvailable = Boolean(meta.whatsapp_available)
     const advisorCategory = (meta.advisor_category as string | undefined)?.trim() || 'woman'
     const dateTypes = sanitizeDateTypes(meta.date_types as string[] | undefined)
     const incallRates = sanitizeRates(meta.incall_rates as unknown[] | undefined, 'incall')
@@ -125,6 +126,7 @@ export async function POST() {
         availability_slots: sanitizeAvailabilitySlots(meta.availability_slots as string[] | undefined),
         availability: deriveAvailability(dateTypes),
         phone,
+        whatsapp_available: whatsappAvailable,
         advisor_category: advisorCategory,
       }])
       .select()

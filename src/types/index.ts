@@ -38,6 +38,7 @@ export interface Profile {
   nationality: string;
   languages: string[];
   phone: string;
+  whatsappAvailable?: boolean;
   description: string;
   photos: ProfilePhoto[];
   services: string[];

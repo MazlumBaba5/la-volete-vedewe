@@ -31,6 +31,7 @@ type Body = {
   outcallRates?: unknown[]
   availabilitySlots?: string[]
   phone?: string
+  whatsappAvailable?: boolean
 }
 
 function makeSlug(name = '') {
@@ -138,6 +139,7 @@ export async function POST(req: Request) {
           outcall_rates: outcallRates,
           availability_slots: availabilitySlots,
           phone: body.phone?.trim() || '',
+          whatsapp_available: Boolean(body.whatsappAvailable),
         },
       },
     })
@@ -176,6 +178,7 @@ export async function POST(req: Request) {
         availability_slots: availabilitySlots,
         availability: deriveAvailability(dateTypes),
         phone: body.phone?.trim() || null,
+        whatsapp_available: Boolean(body.whatsappAvailable),
         status: 'active',
       }])
 
