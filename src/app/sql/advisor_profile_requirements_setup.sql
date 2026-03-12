@@ -27,28 +27,26 @@ END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_proc
-    WHERE proname = 'prevent_advisor_age_ethnicity_changes'
-  ) THEN
-    CREATE FUNCTION public.prevent_advisor_age_ethnicity_changes()
-    RETURNS trigger
-    LANGUAGE plpgsql
-    AS $fn$
-    BEGIN
-      IF OLD.age IS NOT NULL AND NEW.age IS DISTINCT FROM OLD.age THEN
-        RAISE EXCEPTION 'advisors.age cannot be changed once set';
-      END IF;
+  CREATE OR REPLACE FUNCTION public.prevent_advisor_age_ethnicity_changes()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  AS $fn$
+  BEGIN
+    IF OLD.age IS NOT NULL AND NEW.age IS DISTINCT FROM OLD.age THEN
+      RAISE EXCEPTION 'advisors.age cannot be changed once set';
+    END IF;
 
-      IF OLD.ethnicity IS NOT NULL AND NEW.ethnicity IS DISTINCT FROM OLD.ethnicity THEN
-        RAISE EXCEPTION 'advisors.ethnicity cannot be changed once set';
-      END IF;
+    IF OLD.ethnicity IS NOT NULL AND NEW.ethnicity IS DISTINCT FROM OLD.ethnicity THEN
+      RAISE EXCEPTION 'advisors.ethnicity cannot be changed once set';
+    END IF;
 
-      RETURN NEW;
-    END;
-    $fn$;
-  END IF;
+    IF OLD.gender IS NOT NULL AND NEW.gender IS DISTINCT FROM OLD.gender THEN
+      RAISE EXCEPTION 'advisors.gender cannot be changed once set';
+    END IF;
+
+    RETURN NEW;
+  END;
+  $fn$;
 END $$;
 
 DO $$

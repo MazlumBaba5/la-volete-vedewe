@@ -128,7 +128,7 @@ export async function PATCH(req: Request) {
     const admin = createAdminClient()
     const { data: current, error: currentError } = await admin
       .from('advisors')
-      .select('age, ethnicity')
+      .select('age, ethnicity, gender')
       .eq('profile_id', user.id)
       .single()
 
@@ -164,6 +164,17 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'Ethnicity cannot be changed once saved' }, { status: 400 })
       }
       updates.ethnicity = ethnicity
+    }
+
+    if ('gender' in updates) {
+      const gender = String(updates.gender ?? '').trim()
+      if (!['female', 'male', 'shemale'].includes(gender)) {
+        return NextResponse.json({ error: 'Please select a valid gender' }, { status: 400 })
+      }
+      if (current.gender !== null && current.gender !== gender) {
+        return NextResponse.json({ error: 'Gender cannot be changed once saved' }, { status: 400 })
+      }
+      updates.gender = gender
     }
 
     if ('sexual_orientation' in updates) {

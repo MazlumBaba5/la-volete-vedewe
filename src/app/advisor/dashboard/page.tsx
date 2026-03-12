@@ -414,6 +414,7 @@ export default function DashboardPage() {
   const pct = profileCompleteness(advisor)
   const ageLocked = advisor.age !== null
   const ethnicityLocked = !!advisor.ethnicity
+  const genderLocked = !!advisor.gender
   const hasBdsm = form.date_types.includes('Bdsm')
   const hasMassage = form.date_types.includes('Massage')
   const hasSexCam = form.date_types.includes('SexCam')
@@ -656,11 +657,12 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
-                      <select value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark">
+                      <select disabled={genderLocked} value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark disabled:opacity-60">
                         <option value="female">Female</option>
                         <option value="male">Male</option>
                         <option value="shemale">Shemale / Trans</option>
                       </select>
+                      {genderLocked && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Locked after first save.</p>}
                     </div>
                   </div>
 
