@@ -117,6 +117,33 @@ type BillingSummary = {
   }>
 }
 
+const SUBSCRIPTION_COMPARISON = [
+  {
+    title: 'Your personal advertisement',
+    rows: [
+      { label: 'Show your direct contact information', values: { free: true, premium: true, diamond: true } },
+      { label: 'Post up to 10 photos in your profile', values: { free: true, premium: true, diamond: true } },
+      { label: 'Link to your website', values: { free: false, premium: true, diamond: true } },
+      { label: 'Rotating advertisement image', values: { free: false, premium: false, diamond: true } },
+    ],
+  },
+  {
+    title: 'Visibility of your advertisement',
+    rows: [
+      { label: 'Visible to all marketplace visitors', values: { free: true, premium: true, diamond: true } },
+      { label: 'Position of your advertisement', values: { free: 'Standard ads', premium: 'Above Standard ads', diamond: 'Above Premium ads' } },
+    ],
+  },
+  {
+    title: 'Available promotion products',
+    rows: [
+      { label: 'Place your advertisement on top', values: { free: true, premium: true, diamond: true } },
+      { label: 'Promo sticker on your advertisement', values: { free: false, premium: true, diamond: true } },
+      { label: 'Emoji highlight in your advertisement', values: { free: false, premium: false, diamond: true } },
+    ],
+  },
+] as const
+
 // Helpers
 function profileCompleteness(advisor: AdvisorRow): number {
   const optional: (keyof AdvisorRow)[] = [
@@ -963,65 +990,119 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
-                {([
-                  {
-                    level: 'free', name: 'Standard', price: 'Free', period: '',
-                    features: ['1 photo', 'Base position', 'Visible in results', 'No badge'],
-                    cta: 'Current plan', highlight: false,
-                  },
-                  {
-                    level: 'premium', name: 'Premium', price: 'EUR 29', period: '/ 30 days',
-                    features: ['Up to 5 photos', 'Priority position', 'Premium badge', 'Advanced stats'],
-                    cta: 'Buy Premium', highlight: false,
-                  },
-                  {
-                    level: 'diamond', name: 'Diamond', price: 'EUR 59', period: '/ 30 days',
-                    features: ['Unlimited photos', 'Top of results', 'Diamond badge', 'Full stats', 'Priority support'],
-                    cta: 'Buy Diamond', highlight: true,
-                  },
-                ] as const).map((plan) => {
-                  const isCurrent = (billing?.currentTier ?? 'free') === plan.level
-                  const isBusy = billingBusy === `subscription:${plan.level}`
-
-                  return (
-                    <div key={plan.level} className="rounded-xl p-5 flex flex-col gap-4"
-                      style={{
-                        background: plan.highlight ? 'linear-gradient(135deg, rgba(233,30,140,0.1), rgba(124,58,237,0.1))' : 'var(--bg-card)',
-                        border: `1px solid ${plan.highlight ? 'rgba(233,30,140,0.4)' : isCurrent ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`,
-                      }}>
-                      {plan.highlight && (
-                        <span className="text-xs font-bold px-2 py-0.5 rounded-full self-start" style={{ background: 'var(--accent)', color: '#fff' }}>
-                          RECOMMENDED
-                        </span>
-                      )}
-                      <div>
-                        <h3 className="font-bold text-white">{plan.name}</h3>
-                        <p className="text-2xl font-black text-white mt-1">
-                          {plan.price}<span className="text-sm font-normal text-gray-400">{plan.period}</span>
-                        </p>
+              <div
+                className="rounded-2xl overflow-x-auto"
+                style={{
+                  background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                  border: '1px solid var(--border)',
+                  boxShadow: '0 18px 40px rgba(0,0,0,0.18)',
+                }}
+              >
+                <div style={{ minWidth: 920 }}>
+                  <div className="grid grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]">
+                    <div className="p-6">
+                      <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold tracking-[0.18em] uppercase"
+                        style={{ background: 'rgba(233,30,140,0.14)', color: '#f9a8d4' }}>
+                        Package Comparison
                       </div>
-                      <ul className="space-y-2 flex-1">
-                        {plan.features.map((f) => (
-                          <li key={f} className="flex items-center gap-2 text-sm" style={{ color: '#d1d5db' }}>
-                            <svg className="w-4 h-4 shrink-0" style={{ color: '#4ade80' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                            </svg>
-                            {f}
-                          </li>
-                        ))}
-                      </ul>
-                      <button
-                        type="button"
-                        disabled={plan.level === 'free' || isCurrent || isBusy}
-                        onClick={() => plan.level !== 'free' && handleCheckout('subscription', plan.level)}
-                        className={plan.level === 'free' || isCurrent ? 'btn-ghost text-sm py-2 cursor-default' : 'btn-accent text-sm py-2'}
-                      >
-                        {plan.level === 'free' || isCurrent ? 'Current plan' : isBusy ? 'Redirecting...' : plan.cta}
-                      </button>
+                      <h3 className="mt-4 text-2xl font-bold text-white">{SUBSCRIPTION_COMPARISON[0].title}</h3>
                     </div>
-                  )
-                })}
+                    {([
+                      { level: 'free', name: 'Standard', price: 'Free', period: '' },
+                      { level: 'premium', name: 'Premium', price: 'EUR 29', period: '/ 30 days' },
+                      { level: 'diamond', name: 'Diamond', price: 'EUR 59', period: '/ 30 days' },
+                    ] as const).map((plan) => {
+                      const isCurrent = (billing?.currentTier ?? 'free') === plan.level
+                      const isBusy = billingBusy === `subscription:${plan.level}`
+                      const highlight = plan.level === 'diamond'
+
+                      return (
+                        <div
+                          key={plan.level}
+                          className="p-6 text-center"
+                          style={{
+                            background: highlight
+                              ? 'linear-gradient(180deg, rgba(233,30,140,0.11), rgba(233,30,140,0.02))'
+                              : 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))',
+                            borderLeft: '1px solid var(--border)',
+                          }}
+                        >
+                          {highlight && (
+                            <span className="mb-3 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.16em]" style={{ background: 'rgba(233,30,140,0.18)', color: '#fff' }}>
+                              MOST VISIBLE
+                            </span>
+                          )}
+                          <h3 className={`font-bold ${plan.level === 'premium' ? 'text-[#7ecb7e]' : 'text-white'}`}>{plan.name}</h3>
+                          <p className="mt-2 text-2xl font-black text-white">
+                            {plan.price}
+                            <span className="ml-1 text-sm font-normal text-gray-400">{plan.period}</span>
+                          </p>
+                          <button
+                            type="button"
+                            disabled={plan.level === 'free' || isCurrent || isBusy}
+                            onClick={() => plan.level !== 'free' && handleCheckout('subscription', plan.level)}
+                            className={plan.level === 'free' || isCurrent ? 'btn-ghost mt-4 w-full justify-center py-2 text-sm cursor-default' : 'btn-accent mt-4 w-full justify-center py-2 text-sm'}
+                          >
+                            {plan.level === 'free' || isCurrent ? 'Current plan' : isBusy ? 'Redirecting...' : `Choose ${plan.name}`}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {SUBSCRIPTION_COMPARISON.flatMap((section, sectionIndex) => {
+                    const items: JSX.Element[] = []
+
+                    if (sectionIndex > 0) {
+                      items.push(
+                        <div
+                          key={`${section.title}-divider`}
+                          className="grid grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]"
+                          style={{ borderTop: '1px solid var(--border)' }}
+                        >
+                          <div className="px-6 py-4 text-xs font-bold uppercase tracking-[0.2em]" style={{ color: '#f9a8d4' }}>
+                            {section.title}
+                          </div>
+                          <div style={{ borderLeft: '1px solid var(--border)' }} />
+                          <div style={{ borderLeft: '1px solid var(--border)' }} />
+                          <div style={{ borderLeft: '1px solid var(--border)' }} />
+                        </div>
+                      )
+                    }
+
+                    for (const row of section.rows) {
+                      items.push(
+                        <div key={row.label} className="grid grid-cols-[1.4fr_repeat(3,minmax(0,1fr))]" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="p-6 text-sm" style={{ color: '#d1d5db' }}>
+                            {row.label}
+                          </div>
+                          {(['free', 'premium', 'diamond'] as const).map((level) => {
+                            const value = row.values[level]
+                            return (
+                              <div key={level} className="flex items-center justify-center p-6 text-sm text-center" style={{ borderLeft: '1px solid var(--border)' }}>
+                                {typeof value === 'boolean' ? (
+                                  value ? (
+                                    <svg className="h-5 w-5" style={{ color: '#2f9e44' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="h-5 w-5" style={{ color: '#dc2626' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )
+                                ) : (
+                                  <span style={{ color: '#d1d5db' }}>{value}</span>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+
+                    return items
+                  })}
+                </div>
               </div>
 
               <div className="space-y-4">
