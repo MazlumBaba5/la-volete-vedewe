@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-
-const ALLOWED_FIELDS = ['name', 'city', 'age', 'bio', 'phone'] as const
+import { isValidGuestUsername, normalizeGuestUsername } from '@/lib/guest-auth'
 
 export async function GET() {
   try {
@@ -9,14 +8,17 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data, error } = await supabase
-      .from('guests')
-      .select('*')
-      .eq('profile_id', user.id)
-      .single()
+    const username =
+      (user.user_metadata?.username as string | undefined) ||
+      (user.user_metadata?.name as string | undefined) ||
+      user.email?.split('@')[0] ||
+      'guest'
 
-    if (error) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-    return NextResponse.json(data)
+    return NextResponse.json({
+      profile_id: user.id,
+      name: username,
+      role: user.user_metadata?.role ?? 'guest',
+    })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
@@ -29,19 +31,20 @@ export async function PATCH(req: Request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = (await req.json()) as Record<string, unknown>
-    const updates: Record<string, unknown> = {}
-    for (const key of ALLOWED_FIELDS) {
-      if (key in body) updates[key] = body[key]
+    const requestedName = typeof body.name === 'string' ? body.name : ''
+
+    if (!isValidGuestUsername(requestedName)) {
+      return NextResponse.json({ error: 'Choose a username with at least 3 characters' }, { status: 400 })
     }
 
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
-    }
-
-    const { error } = await supabase
-      .from('guests')
-      .update(updates)
-      .eq('profile_id', user.id)
+    const username = normalizeGuestUsername(requestedName)
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        ...user.user_metadata,
+        name: username,
+        username,
+      },
+    })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })

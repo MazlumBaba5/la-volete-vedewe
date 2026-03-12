@@ -19,10 +19,11 @@ CREATE TABLE public.advisors (
   profile_id uuid NOT NULL UNIQUE,
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
+  advisor_category text NOT NULL DEFAULT 'woman'::text CHECK (advisor_category = ANY (ARRAY['woman'::text, 'man'::text, 'couple'::text, 'shemale'::text])),
   bio text,
   city text NOT NULL,
   region text,
-  country text NOT NULL DEFAULT 'IT'::text,
+  country text NOT NULL DEFAULT 'NL'::text,
   latitude numeric,
   longitude numeric,
   age smallint CHECK (age >= 18 AND age <= 80),
@@ -32,12 +33,18 @@ CREATE TABLE public.advisors (
   eye_color text,
   hair_color text,
   ethnicity text,
+  sexual_orientation text,
   availability USER-DEFINED DEFAULT 'both'::availability_type,
+  date_types ARRAY DEFAULT '{}'::text[],
   languages ARRAY DEFAULT '{it}'::text[],
   services_tags ARRAY DEFAULT '{}'::text[],
+  incall_rates jsonb DEFAULT '[]'::jsonb,
+  outcall_rates jsonb DEFAULT '[]'::jsonb,
+  availability_slots ARRAY DEFAULT '{}'::text[],
   phone text,
   whatsapp_available boolean DEFAULT false,
   telegram_available boolean DEFAULT false,
+  reviews_enabled boolean NOT NULL DEFAULT true,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::advisor_status,
   is_verified boolean DEFAULT false,
   is_featured boolean DEFAULT false,
@@ -47,7 +54,8 @@ CREATE TABLE public.advisors (
   published_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT advisors_pkey PRIMARY KEY (id)
+  CONSTRAINT advisors_pkey PRIMARY KEY (id),
+  CONSTRAINT advisors_city_fkey FOREIGN KEY (city) REFERENCES public.dutch_cities(name)
 );
 CREATE TABLE public.cities (
   id text NOT NULL,
@@ -55,6 +63,11 @@ CREATE TABLE public.cities (
   count integer DEFAULT 0,
   region text,
   CONSTRAINT cities_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.dutch_cities (
+  name text NOT NULL,
+  region text NOT NULL,
+  CONSTRAINT dutch_cities_pkey PRIMARY KEY (name)
 );
 CREATE TABLE public.credit_transactions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -127,7 +140,9 @@ CREATE TABLE public.reviews (
   advisor_id uuid NOT NULL,
   profile_id uuid NOT NULL,
   rating smallint NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  title text NOT NULL DEFAULT 'Client review'::text,
   comment text,
+  reviewer_username text NOT NULL DEFAULT 'guest'::text,
   is_visible boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT reviews_pkey PRIMARY KEY (id),

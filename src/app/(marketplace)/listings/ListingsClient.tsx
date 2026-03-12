@@ -22,12 +22,20 @@ function filterProfiles(profiles: Profile[], filters: SearchFilters): Profile[] 
         )
     }
     if (filters.region) result = result.filter((p) => p.district === filters.region)
+    if (filters.category) result = result.filter((p) => p.advisorCategory === filters.category)
     if (filters.city) result = result.filter((p) => p.city === filters.city)
     if (filters.minAge) result = result.filter((p) => p.age >= filters.minAge!)
     if (filters.maxAge) result = result.filter((p) => p.age <= filters.maxAge!)
     if (filters.subscriptionLevel) result = result.filter((p) => p.subscriptionLevel === filters.subscriptionLevel)
     if (filters.verified) result = result.filter((p) => p.isVerified)
     if (filters.isOnline) result = result.filter((p) => p.isOnline)
+    if (filters.services?.length) {
+        result = result.filter((p) =>
+            filters.services!.some((service) =>
+                p.services.some((profileService) => profileService.toLowerCase() === service.toLowerCase())
+            )
+        )
+    }
     if (filters.minPrice) result = result.filter((p) => p.rates.some((r) => r.price >= filters.minPrice!))
     if (filters.maxPrice) result = result.filter((p) => p.rates.some((r) => r.price <= filters.maxPrice!))
 

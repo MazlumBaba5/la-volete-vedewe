@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { type Profile } from '@/types';
 
 interface Props {
@@ -11,13 +12,43 @@ interface Props {
 export default function ContactModal({ profile, onClose }: Props) {
   const [unlocked, setUnlocked] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [whatsappAvailable, setWhatsappAvailable] = useState(Boolean(profile.whatsappAvailable));
+  const [error, setError] = useState('');
+
+  function getMaskedPhone() {
+    return '+31 6•• ••• ••••';
+  }
+
+  function buildWhatsappLink(value: string) {
+    const normalizedPhone = value.replace(/[^\d+]/g, '');
+    const phoneForUrl = normalizedPhone.startsWith('+')
+      ? normalizedPhone.slice(1)
+      : normalizedPhone
+
+    return `https://wa.me/${phoneForUrl}?text=${encodeURIComponent('Ehy, i just saw your profile on LvvD')}`;
+  }
 
   const handleUnlock = async () => {
     setLoading(true);
-    // Mock: simulate API call
-    await new Promise((r) => setTimeout(r, 800));
-    setLoading(false);
-    setUnlocked(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/advisor/${profile.advisorId}/contact`, {
+        cache: 'no-store',
+      });
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(json.error ?? 'Unable to load the phone number right now.');
+        return;
+      }
+
+      setPhone(json.phone ?? '');
+      setWhatsappAvailable(Boolean(json.whatsapp_available));
+      setUnlocked(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -81,9 +112,19 @@ export default function ContactModal({ profile, onClose }: Props) {
               </div>
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Phone number</p>
-                <p className="font-bold text-white text-lg">{profile.phone}</p>
+                <p className="font-bold text-white text-lg">{phone}</p>
               </div>
             </div>
+            {whatsappAvailable && phone && (
+              <a
+                href={buildWhatsappLink(phone)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-accent w-full justify-center py-3 text-sm"
+              >
+                Contact on WhatsApp
+              </a>
+            )}
             <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
               Always respect privacy and personal boundaries.
             </p>
@@ -104,15 +145,28 @@ export default function ContactModal({ profile, onClose }: Props) {
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Phone number</p>
                 <p className="font-bold text-white text-lg tracking-widest select-none">
-                  +39 3●● ●●● ●●●●
+                  {getMaskedPhone()}
                 </p>
               </div>
             </div>
 
             <p className="text-sm text-gray-400 text-center">
-              Sign in or sign up to view the contact for{' '}
+              Click below to reveal the contact for{' '}
               <strong className="text-white">{profile.name}</strong>
             </p>
+
+            {error && (
+              <div
+                className="text-xs px-4 py-3 rounded-lg text-center"
+                style={{
+                  background: 'rgba(239,68,68,0.1)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#fca5a5',
+                }}
+              >
+                {error}
+              </div>
+            )}
 
             <button
               onClick={handleUnlock}
@@ -128,23 +182,23 @@ export default function ContactModal({ profile, onClose }: Props) {
                   Loading…
                 </>
               ) : (
-                '\uD83D\uDD13 Show contact (demo)'
+                'Show phone number'
               )}
             </button>
 
             <div className="flex gap-2">
-              <a
+              <Link
                 href="/login"
                 className="btn-outline flex-1 text-center text-sm py-2"
               >
-                Sign in
-              </a>
-              <a
+                Client sign in
+              </Link>
+              <Link
                 href="/register"
                 className="btn-ghost flex-1 text-center text-sm py-2"
               >
-                Sign up
-              </a>
+                Create account
+              </Link>
             </div>
           </div>
         )}

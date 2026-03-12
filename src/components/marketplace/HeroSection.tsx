@@ -48,13 +48,10 @@ export default function HeroSection({ cities = [], stats }: Props) {
           🇳🇱 &nbsp;{stats ? `+${stats.totalAdvisors.toLocaleString()}` : '+'} listings across the Netherlands
         </div>
 
-        <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight max-w-3xl">
-          Find the{' '}
-          <span style={{ background: 'linear-gradient(135deg, var(--accent), #ff6eb4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            perfect
-          </span>{' '}
-          companion for you
-        </h1>
+        <h1 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight max-w-3xl" style={{ color: '#ff00ff', filter: 'drop-shadow(0 0 12px rgba(255, 0, 255, 0.8))' }}>L❤❤D</h1>
+        <h2 className="text-3xl md:text-xl lg:text-5xl font-black text-white leading-tight max-w-3xl">
+          Pleasure begins with the perfect company.
+        </h2>
 
         <p className="mt-4 text-gray-400 text-lg max-w-xl">
           Thousands of verified profiles across the Netherlands. Discretion and safety guaranteed.

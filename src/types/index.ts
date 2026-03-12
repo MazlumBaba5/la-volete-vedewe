@@ -11,6 +11,7 @@ export interface User {
 }
 
 export type SubscriptionLevel = 'free' | 'premium' | 'diamond';
+export type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale';
 
 // Profile (marketplace listing)
 export interface ProfilePhoto {
@@ -27,14 +28,17 @@ export interface ProfileRate {
 
 export interface Profile {
   id: string;
+  advisorId?: string;
   slug: string;
   name: string;
+  advisorCategory?: AdvisorCategory;
   age: number;
   city: string;
   district?: string;
   nationality: string;
   languages: string[];
   phone: string;
+  whatsappAvailable?: boolean;
   description: string;
   photos: ProfilePhoto[];
   services: string[];
@@ -51,9 +55,19 @@ export interface Profile {
   isVerified: boolean;
   isOnline: boolean;
   subscriptionLevel: SubscriptionLevel;
+  reviewsEnabled?: boolean;
   views: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  rating: number;
+  title: string;
+  comment: string;
+  reviewerUsername: string;
+  createdAt: string;
 }
 
 export interface Category {
@@ -102,7 +116,7 @@ export interface Subscription {
 // Search & Filter
 export interface SearchFilters {
   query?: string;
-  category?: string;
+  category?: AdvisorCategory;
   city?: string;
   region?: string;
   minAge?: number;

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/advisor/[id]/contact
- * Fetch advisor contact information (requires authentication)
+ * Fetch advisor contact information after explicit user action.
+ * The public page keeps the number masked; the API reveals it only after the visitor clicks "show".
  */
 export async function GET(
   request: NextRequest,
@@ -11,22 +12,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient();
+    const admin = createAdminClient()
 
-    // Verify user is authenticated
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Fetch advisor phone (sensitive data, requires auth)
-    const { data, error } = await supabase
+    // Fetch advisor phone after the user explicitly clicked "show".
+    const { data, error } = await admin
       .from('advisors')
-      .select('id, phone')
+      .select('id, phone, whatsapp_available')
       .eq('id', id)
       .single();
 

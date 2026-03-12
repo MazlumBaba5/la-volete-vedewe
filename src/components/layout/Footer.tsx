@@ -1,7 +1,11 @@
 import Link from 'next/link';
-import { MOCK_CATEGORIES, MOCK_CITIES } from '@/lib/mock-data';
+import { DUTCH_CITIES } from '@/lib/netherlands-cities';
+import { LISTING_CATEGORY_GROUPS, MASSAGE_GROUP } from '@/lib/listing-navigation';
 
 export default function Footer() {
+  const topCities = DUTCH_CITIES.slice(0, 8);
+  const footerCategories = [...LISTING_CATEGORY_GROUPS, MASSAGE_GROUP];
+
   return (
     <footer
       className="mt-16 border-t text-sm"
@@ -22,9 +26,9 @@ export default function Footer() {
               Lvvd
             </span>
             <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-              The most-visited adult personal ads portal in Italy.
+              The most-visited adult personal ads portal in the Netherlands.
               <br />
-              All content is published by adult users.
+              All listings are published by verified adult users.
             </p>
           </div>
 
@@ -32,10 +36,12 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-gray-300 mb-3">Categories</h4>
             <ul className="space-y-2">
-              {MOCK_CATEGORIES.slice(0, 6).map((cat: typeof MOCK_CATEGORIES[0]) => (
-                <li key={cat.id}>
+              {footerCategories.map((cat) => (
+                <li key={cat.label}>
                   <Link
-                    href={`/listings?categoria=${cat.slug}`}
+                    href={('category' in cat)
+                      ? `/listings?category=${cat.category}`
+                      : `/listings?services=${encodeURIComponent('Massage')},${encodeURIComponent('Erotic massage')}`}
                     className="transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                   >
@@ -50,14 +56,14 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-gray-300 mb-3">Top Cities</h4>
             <ul className="space-y-2">
-              {MOCK_CITIES.slice(0, 8).map((city: typeof MOCK_CITIES[0]) => (
-                <li key={city.id}>
+              {topCities.map((city) => (
+                <li key={city.city}>
                   <Link
-                    href={`/listings?city=${encodeURIComponent(city.name)}`}
+                    href={`/listings?city=${encodeURIComponent(city.city)}`}
                     className="transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                   >
-                    {city.name}
+                    {city.city}
                   </Link>
                 </li>
               ))}

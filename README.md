@@ -20,6 +20,28 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Stripe setup
+
+Copy the variables from [`.env.example`](/home/babayaga/Documents/Next.Js/la-volete-vedewe/.env.example) into your local environment and add the real Stripe price IDs for:
+
+- `premium` monthly subscription
+- `diamond` monthly subscription
+- `starter`, `boost`, and `power` credit packs
+
+The advisor dashboard now uses:
+
+- `POST /api/stripe/checkout` for Stripe Checkout sessions
+- `POST /api/stripe/portal` for the Stripe Billing Portal
+- `POST /api/webhooks/stripe` to sync subscriptions and credit wallet purchases back into Supabase
+
+Apply [stripe_billing_setup.sql](/home/babayaga/Documents/Next.Js/la-volete-vedewe/src/app/sql/stripe_billing_setup.sql) after the base schema to add the indexes used by the billing flow.
+
+Recommended local webhook command:
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
