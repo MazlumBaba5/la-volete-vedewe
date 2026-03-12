@@ -16,7 +16,7 @@ interface Props {
     maxPhotos?: number
 }
 
-export default function PhotoUpload({ photos, onChange, maxPhotos = 10 }: Props) {
+export default function PhotoUpload({ photos, onChange, maxPhotos = 25 }: Props) {
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState('')
     const [dragOver, setDragOver] = useState(false)

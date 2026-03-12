@@ -122,7 +122,7 @@ const SUBSCRIPTION_COMPARISON = [
     title: 'Your personal advertisement',
     rows: [
       { label: 'Show your direct contact information', values: { free: true, premium: true, diamond: true } },
-      { label: 'Post up to 10 photos in your profile', values: { free: true, premium: true, diamond: true } },
+      { label: 'Post up to 25 photos in your profile', values: { free: true, premium: true, diamond: true } },
       { label: 'Link to your website', values: { free: false, premium: true, diamond: true } },
       { label: 'Rotating advertisement image', values: { free: false, premium: false, diamond: true } },
     ],
@@ -615,10 +615,10 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm font-semibold text-white">Photos</p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Profiles with photos receive up to 10x more contacts. Up to 10 photos — JPG / PNG / WebP.
+                    Profiles with photos receive up to 10x more contacts. Up to 25 photos — JPG / PNG / WebP.
                   </p>
                 </div>
-                <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={10} />
+                <PhotoUpload photos={photos} onChange={setPhotos} maxPhotos={25} />
               </div>
 
               {saveMsg && (
@@ -1022,17 +1022,24 @@ export default function DashboardPage() {
                           className="p-6 text-center"
                           style={{
                             background: highlight
-                              ? 'linear-gradient(180deg, rgba(233,30,140,0.11), rgba(233,30,140,0.02))'
+                              ? 'linear-gradient(180deg, rgba(212,175,55,0.20), rgba(212,175,55,0.05))'
+                              : plan.level === 'premium'
+                              ? 'linear-gradient(180deg, rgba(34,197,94,0.16), rgba(34,197,94,0.03))'
                               : 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))',
                             borderLeft: '1px solid var(--border)',
                           }}
                         >
                           {highlight && (
-                            <span className="mb-3 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.16em]" style={{ background: 'rgba(233,30,140,0.18)', color: '#fff' }}>
+                            <span className="mb-3 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.16em]" style={{ background: 'rgba(212,175,55,0.26)', color: '#fff' }}>
                               MOST VISIBLE
                             </span>
                           )}
-                          <h3 className={`font-bold ${plan.level === 'premium' ? 'text-[#7ecb7e]' : 'text-white'}`}>{plan.name}</h3>
+                          {plan.level === 'premium' && (
+                            <span className="mb-3 inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold tracking-[0.16em]" style={{ background: 'rgba(34,197,94,0.22)', color: '#fff' }}>
+                              PRIORITY
+                            </span>
+                          )}
+                          <h3 className={`font-bold ${plan.level === 'diamond' ? 'text-[#d4af37]' : plan.level === 'premium' ? 'text-[#7ecb7e]' : 'text-white'}`}>{plan.name}</h3>
                           <p className="mt-2 text-2xl font-black text-white">
                             {plan.price}
                             <span className="ml-1 text-sm font-normal text-gray-400">{plan.period}</span>
