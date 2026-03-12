@@ -28,6 +28,7 @@ export interface ProfileRate {
 
 export interface Profile {
   id: string;
+  advisorId?: string;
   slug: string;
   name: string;
   advisorCategory?: AdvisorCategory;
@@ -53,9 +54,19 @@ export interface Profile {
   isVerified: boolean;
   isOnline: boolean;
   subscriptionLevel: SubscriptionLevel;
+  reviewsEnabled?: boolean;
   views: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  rating: number;
+  title: string;
+  comment: string;
+  reviewerUsername: string;
+  createdAt: string;
 }
 
 export interface Category {

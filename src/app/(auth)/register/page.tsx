@@ -332,6 +332,12 @@ export default function RegisterPage() {
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Email</label>
               <input type="email" required value={form.email} onChange={(e) => updateField('email', e.target.value)} placeholder="your@email.com" className="input-dark" />
             </div>
+            {role === 'guest' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-400 mb-1.5">Username</label>
+                <input type="text" required minLength={3} value={form.name} onChange={(e) => updateField('name', e.target.value)} placeholder="yourusername" className="input-dark" />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-400 mb-1.5">Password</label>
               <input type="password" required minLength={8} value={form.password} onChange={(e) => updateField('password', e.target.value)} placeholder="At least 8 characters" className="input-dark" />

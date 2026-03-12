@@ -9,6 +9,7 @@ import {
   sanitizeRates,
   sanitizeServices,
 } from '@/lib/advisor-profile-options'
+import { isValidGuestUsername, normalizeGuestUsername } from '@/lib/guest-auth'
 import { findDutchCity } from '@/lib/netherlands-cities'
 
 type Body = {
@@ -44,8 +45,12 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Body
 
-    if (!body.email || !body.password) {
-      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
+    if (!body.password) {
+      return NextResponse.json({ error: 'Password is required' }, { status: 400 })
+    }
+
+    if (!body.email) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
     const selectedCity = findDutchCity(body.city)
@@ -56,6 +61,10 @@ export async function POST(req: Request) {
     const outcallRates = sanitizeRates(body.outcallRates, 'outcall')
 
     if (body.role === 'advisor') {
+      if (!body.email) {
+        return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+      }
+
       if (!selectedCity) {
         return NextResponse.json({ error: 'Please select a valid city in the Netherlands' }, { status: 400 })
       }
@@ -99,17 +108,22 @@ export async function POST(req: Request) {
       if (dateTypes.includes('Outcall') && outcallRates.length === 0) {
         return NextResponse.json({ error: 'Add at least one OutCall price' }, { status: 400 })
       }
+    } else {
+      if (!body.name?.trim() || !isValidGuestUsername(body.name)) {
+        return NextResponse.json({ error: 'Choose a username with at least 3 characters' }, { status: 400 })
+      }
     }
 
     const supabase = await createClient()
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: body.email,
+      email: body.email as string,
       password: body.password,
       options: {
         data: {
           role: body.role,
-          name: body.name?.trim() || '',
+          name: body.role === 'guest' ? normalizeGuestUsername(body.name?.trim() || '') : body.name?.trim() || '',
+          username: body.role === 'guest' ? normalizeGuestUsername(body.name?.trim() || '') : '',
           advisor_category: body.advisorCategory ?? 'woman',
           age: body.age ?? null,
           gender: body.gender ?? 'female',
@@ -168,22 +182,6 @@ export async function POST(req: Request) {
       if (error) {
         // Non-fatal: the dashboard will create the row on first load from user_metadata
         console.warn('[register] advisor insert warning:', error.message)
-      }
-    } else if (body.role === 'guest') {
-      const name = (body.name?.trim() || body.email.split('@')[0] || 'guest')
-      const slug = makeSlug(name)
-
-      const { error } = await supabase.from('guests').insert([{
-        profile_id: userId,
-        name,
-        slug,
-        city: selectedCity?.city || null,
-        region: selectedCity?.region || null,
-        phone: body.phone?.trim() || null,
-      }])
-
-      if (error) {
-        console.warn('[register] guest insert warning:', error.message)
       }
     }
 

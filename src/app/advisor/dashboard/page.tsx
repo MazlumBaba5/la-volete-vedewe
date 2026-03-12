@@ -56,6 +56,9 @@ type AdvisorRow = {
   phone: string | null
   whatsapp_available: boolean
   telegram_available: boolean
+  reviews_enabled: boolean
+  review_count?: number
+  review_average?: number
   status: string
   is_verified: boolean
   is_featured: boolean
@@ -220,8 +223,12 @@ export default function DashboardPage() {
 
   const [settingsEmail, setSettingsEmail] = useState('')
   const [settingsPassword, setSettingsPassword] = useState('')
+  const [settingsReviewsEnabled, setSettingsReviewsEnabled] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const reviewCount = advisor?.review_count ?? 0
+  const reviewAverage = advisor?.review_average ?? 0
+  const cannotDisableReviews = settingsReviewsEnabled && reviewCount > 0 && reviewAverage <= 2
 
   useEffect(() => {
     loadData()
@@ -265,6 +272,7 @@ export default function DashboardPage() {
       const data = await res.json() as AdvisorRow
       setAdvisor(data)
       setForm(rowToForm(data))
+      setSettingsReviewsEnabled(data.reviews_enabled ?? true)
 
       // carica foto esistenti
       const { data: mediaData } = await supabase
@@ -369,21 +377,41 @@ export default function DashboardPage() {
     try {
       const supabase = createClient()
       const updates: { email?: string; password?: string } = {}
+      const reviewPreferenceChanged = settingsReviewsEnabled !== (advisor?.reviews_enabled ?? true)
       if (settingsEmail !== userEmail) updates.email = settingsEmail
       if (settingsPassword) updates.password = settingsPassword
 
-      if (Object.keys(updates).length === 0) {
+      if (Object.keys(updates).length === 0 && !reviewPreferenceChanged) {
         setSettingsMsg({ type: 'error', text: 'No changes to apply' })
         return
       }
-      const { error } = await supabase.auth.updateUser(updates)
-      if (error) {
-        setSettingsMsg({ type: 'error', text: error.message })
-      } else {
-        setSettingsMsg({ type: 'success', text: 'Settings updated!' })
-        setSettingsPassword('')
-        if (updates.email) setUserEmail(settingsEmail)
+
+      if (reviewPreferenceChanged) {
+        const reviewRes = await fetch('/api/advisor/profile', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviews_enabled: settingsReviewsEnabled }),
+        })
+
+        if (!reviewRes.ok) {
+          const json = await reviewRes.json().catch(() => ({}))
+          setSettingsMsg({ type: 'error', text: json.error ?? 'Unable to update review settings' })
+          return
+        }
       }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await supabase.auth.updateUser(updates)
+        if (error) {
+          setSettingsMsg({ type: 'error', text: error.message })
+          return
+        }
+      }
+
+      setSettingsMsg({ type: 'success', text: 'Settings updated!' })
+      setSettingsPassword('')
+      if (updates.email) setUserEmail(settingsEmail)
+      setAdvisor((current) => current ? { ...current, reviews_enabled: settingsReviewsEnabled } : current)
     } finally {
       setSettingsSaving(false)
     }
@@ -1207,6 +1235,40 @@ export default function DashboardPage() {
                   <input type="password" value={settingsPassword} onChange={(e) => setSettingsPassword(e.target.value)}
                     placeholder="Leave blank to keep current" className="input-dark" />
                 </div>
+
+                <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-white">Profile reviews</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Let registered client accounts leave public 1 to 5 star reviews on your profile.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={cannotDisableReviews}
+                      onClick={() => setSettingsReviewsEnabled((current) => !current)}
+                      className="relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{ background: settingsReviewsEnabled ? 'var(--accent)' : 'rgba(255,255,255,0.12)' }}
+                    >
+                      <span
+                        className="absolute top-1 h-5 w-5 rounded-full bg-white transition-transform"
+                        style={{ left: settingsReviewsEnabled ? '1.55rem' : '0.25rem' }}
+                      />
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium" style={{ color: settingsReviewsEnabled ? '#86efac' : '#fca5a5' }}>
+                    {settingsReviewsEnabled ? 'Reviews are enabled on your public profile.' : 'Reviews are hidden and new client reviews are blocked.'}
+                  </p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {reviewCount === 0
+                      ? 'No reviews yet: you can enable or disable this switch whenever you want.'
+                      : cannotDisableReviews
+                      ? `You cannot disable reviews because your current visible average is ${reviewAverage.toFixed(1)} stars.`
+                      : `Current visible average: ${reviewAverage.toFixed(1)} stars from ${reviewCount} review${reviewCount === 1 ? '' : 's'}.`}
+                  </p>
+                </div>
+
                 <button type="submit" disabled={settingsSaving} className="btn-outline text-sm px-4 py-2">
                   {settingsSaving ? 'Saving...' : 'Update security'}
                 </button>

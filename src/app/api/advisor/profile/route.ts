@@ -16,7 +16,7 @@ const ALLOWED_FIELDS = [
   'height_cm', 'weight_kg', 'eye_color', 'hair_color', 'ethnicity',
   'phone', 'whatsapp_available', 'telegram_available',
   'availability', 'languages', 'services_tags', 'sexual_orientation',
-  'date_types', 'incall_rates', 'outcall_rates', 'availability_slots',
+  'date_types', 'incall_rates', 'outcall_rates', 'availability_slots', 'reviews_enabled',
 ] as const
 
 function makeSlug(name = '') {
@@ -25,6 +25,28 @@ function makeSlug(name = '') {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
   return `${base || 'user'}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+async function getAdvisorReviewStats(admin: ReturnType<typeof createAdminClient>, advisorId: string) {
+  const { data: reviews, error } = await admin
+    .from('reviews')
+    .select('rating')
+    .eq('advisor_id', advisorId)
+    .eq('is_visible', true)
+
+  if (error) {
+    return { review_count: 0, review_average: 0 }
+  }
+
+  const reviewCount = reviews?.length ?? 0
+  const reviewAverage = reviewCount
+    ? Number(((reviews ?? []).reduce((sum, review) => sum + Number(review.rating ?? 0), 0) / reviewCount).toFixed(1))
+    : 0
+
+  return {
+    review_count: reviewCount,
+    review_average: reviewAverage,
+  }
 }
 
 export async function GET() {
@@ -43,7 +65,8 @@ export async function GET() {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     if (!data) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-    return NextResponse.json(data)
+    const reviewStats = await getAdvisorReviewStats(admin, data.id as string)
+    return NextResponse.json({ ...data, ...reviewStats })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
@@ -67,7 +90,8 @@ export async function POST() {
 
     if (existing) {
       const { data } = await admin.from('advisors').select('*').eq('profile_id', user.id).single()
-      return NextResponse.json(data)
+      const reviewStats = await getAdvisorReviewStats(admin, data.id as string)
+      return NextResponse.json({ ...data, ...reviewStats })
     }
 
     const meta = user.user_metadata ?? {}
@@ -107,7 +131,7 @@ export async function POST() {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json({ ...data, review_count: 0, review_average: 0 }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
@@ -216,6 +240,29 @@ export async function PATCH(req: Request) {
 
     if ('outcall_rates' in updates) {
       updates.outcall_rates = sanitizeRates(updates.outcall_rates, 'outcall')
+    }
+
+    if ('reviews_enabled' in updates) {
+      updates.reviews_enabled = Boolean(updates.reviews_enabled)
+
+      if (updates.reviews_enabled === false) {
+        const { data: advisorRecord, error: advisorError } = await admin
+          .from('advisors')
+          .select('id')
+          .eq('profile_id', user.id)
+          .single()
+
+        if (advisorError) {
+          return NextResponse.json({ error: advisorError.message }, { status: 500 })
+        }
+
+        const reviewStats = await getAdvisorReviewStats(admin, advisorRecord.id as string)
+        if (reviewStats.review_count > 0 && reviewStats.review_average <= 2) {
+          return NextResponse.json({
+            error: 'Reviews cannot be disabled when your visible review average is 2 stars or lower.',
+          }, { status: 400 })
+        }
+      }
     }
 
     const nextDateTypes = dateTypes ?? sanitizeDateTypes(body.date_types)
