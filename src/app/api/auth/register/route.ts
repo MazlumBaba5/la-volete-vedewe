@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { findDutchCity } from '@/lib/netherlands-cities'
 
 type Body = {
   email: string
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 })
     }
 
+    const selectedCity = findDutchCity(body.city)
+    if (body.role === 'advisor' && !selectedCity) {
+      return NextResponse.json({ error: 'Please select a valid city in the Netherlands' }, { status: 400 })
+    }
+
     const supabase = await createClient()
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -38,8 +44,8 @@ export async function POST(req: Request) {
           role: body.role,
           name: body.name?.trim() || '',
           advisor_category: body.advisorCategory ?? 'woman',
-          city: body.city?.trim() || '',
-          region: body.region?.trim() || '',
+          city: selectedCity?.city ?? '',
+          region: selectedCity?.region ?? '',
           phone: body.phone?.trim() || '',
         },
       },
@@ -57,7 +63,7 @@ export async function POST(req: Request) {
 
     if (body.role === 'advisor') {
       const name = body.name?.trim() || 'Sofia'
-      const city = body.city?.trim() || 'Rome'
+      const city = selectedCity?.city || 'Amsterdam'
       const slug = makeSlug(name)
 
       const { error } = await supabase.from('advisors').insert([{
@@ -66,7 +72,7 @@ export async function POST(req: Request) {
         slug,
         advisor_category: body.advisorCategory ?? 'woman',
         city,
-        region: body.region?.trim() || null,
+        region: selectedCity?.region || null,
         phone: body.phone?.trim() || null,
         status: 'active',
       }])
@@ -83,8 +89,8 @@ export async function POST(req: Request) {
         profile_id: userId,
         name,
         slug,
-        city: body.city?.trim() || null,
-        region: body.region?.trim() || null,
+        city: selectedCity?.city || null,
+        region: selectedCity?.region || null,
         phone: body.phone?.trim() || null,
       }])
 

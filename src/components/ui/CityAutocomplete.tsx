@@ -17,7 +17,6 @@ interface Props {
 
 export default function CityAutocomplete({
   city,
-  region,
   onChange,
   required,
   className = 'input-dark',
@@ -56,8 +55,8 @@ export default function CityAutocomplete({
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value
     setQuery(val)
-    // Pass current region while user is still typing
-    onChange(val, region)
+    // Reset region until the user selects a valid Dutch city.
+    onChange(val, '')
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchSuggestions(val), 400)
   }
@@ -88,7 +87,7 @@ export default function CityAutocomplete({
         value={query}
         onChange={handleInput}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
-        placeholder="e.g. Roma, Milano..."
+        placeholder="e.g. Amsterdam, Rotterdam..."
         className={className}
         autoComplete="off"
       />

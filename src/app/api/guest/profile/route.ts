@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { findDutchCity } from '@/lib/netherlands-cities'
 
 const ALLOWED_FIELDS = ['name', 'city', 'age', 'bio', 'phone'] as const
 
@@ -32,6 +33,14 @@ export async function PATCH(req: Request) {
     const updates: Record<string, unknown> = {}
     for (const key of ALLOWED_FIELDS) {
       if (key in body) updates[key] = body[key]
+    }
+
+    if ('city' in updates) {
+      const selectedCity = findDutchCity(updates.city as string | undefined)
+      if (!selectedCity) {
+        return NextResponse.json({ error: 'Please select a valid city in the Netherlands' }, { status: 400 })
+      }
+      updates.city = selectedCity.city
     }
 
     if (Object.keys(updates).length === 0) {

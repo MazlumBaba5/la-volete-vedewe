@@ -1,6 +1,7 @@
 // src/services/advisor.service.ts
 import { createAdminClient } from '@/lib/supabase/server'
 import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
+import { findDutchCity } from '@/lib/netherlands-cities'
 import type { Profile, ProfilePhoto, Category, City } from '@/types'
 
 // Selects advisor columns + their media via the FK relationship.
@@ -275,13 +276,14 @@ export async function getCities(): Promise<City[]> {
 
   const cityMap = new Map<string, { count: number; region: string }>()
   for (const row of data as { city: string; region: string | null }[]) {
-    const city = row.city?.trim()
-    if (!city) continue
+    const selectedCity = findDutchCity(row.city)
+    if (!selectedCity) continue
+    const city = selectedCity.city
     const existing = cityMap.get(city)
     if (existing) {
       existing.count++
     } else {
-      cityMap.set(city, { count: 1, region: row.region ?? '' })
+      cityMap.set(city, { count: 1, region: selectedCity.region })
     }
   }
 
@@ -318,7 +320,11 @@ export async function getSiteStats(): Promise<SiteStats> {
     .in('status', VISIBLE_STATUSES)
     .not('city', 'is', null)
 
-  const cityCount = new Set((cityData ?? []).map((r: { city: string }) => r.city?.trim()).filter(Boolean)).size
+  const cityCount = new Set(
+    (cityData ?? [])
+      .map((r: { city: string }) => findDutchCity(r.city)?.city)
+      .filter(Boolean)
+  ).size
 
   return {
     totalAdvisors: count ?? 0,

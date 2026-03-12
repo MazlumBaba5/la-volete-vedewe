@@ -48,7 +48,8 @@ CREATE TABLE public.advisors (
   published_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT advisors_pkey PRIMARY KEY (id)
+  CONSTRAINT advisors_pkey PRIMARY KEY (id),
+  CONSTRAINT advisors_city_fkey FOREIGN KEY (city) REFERENCES public.dutch_cities(name)
 );
 CREATE TABLE public.cities (
   id text NOT NULL,
@@ -56,6 +57,11 @@ CREATE TABLE public.cities (
   count integer DEFAULT 0,
   region text,
   CONSTRAINT cities_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.dutch_cities (
+  name text NOT NULL,
+  region text NOT NULL,
+  CONSTRAINT dutch_cities_pkey PRIMARY KEY (name)
 );
 CREATE TABLE public.credit_transactions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

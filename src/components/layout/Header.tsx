@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { LISTING_CATEGORY_GROUPS, MASSAGE_GROUP } from '@/lib/listing-navigation';
 
 const SERVICE_LINKS = [
   { label: 'InCall', service: 'Incall' },
@@ -12,15 +13,6 @@ const SERVICE_LINKS = [
   { label: 'BDSM', service: 'Domination' },
   { label: 'SexCam', service: 'Webcam' },
 ] as const;
-
-const NAV_GROUPS = [
-  { label: 'Women', icon: '👠', category: 'woman' },
-  { label: 'Men', icon: '🕴️', category: 'man' },
-  { label: 'Couples', icon: '💞', category: 'couple' },
-  { label: 'Shemales', icon: '🔥', category: 'shemale' },
-] as const;
-
-const MASSAGE_GROUP = { label: 'Massages', icon: '💆' } as const;
 
 export default function Header() {
   const router = useRouter();
@@ -166,7 +158,7 @@ export default function Header() {
           className="flex items-center px-4 lg:px-8 gap-2 py-2"
           style={{ maxWidth: 1400, margin: '0 auto' }}
         >
-          {NAV_GROUPS.map((group) => (
+          {LISTING_CATEGORY_GROUPS.map((group) => (
             <div key={group.label} className="group relative">
               <Link
                 href={`/listings?category=${group.category}`}
@@ -278,7 +270,7 @@ export default function Header() {
           </div>
 
           <div className="space-y-2">
-            {NAV_GROUPS.map((group) => {
+            {LISTING_CATEGORY_GROUPS.map((group) => {
               const isExpanded = mobileExpanded === group.label;
 
               return (

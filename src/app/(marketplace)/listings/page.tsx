@@ -1,5 +1,6 @@
 // src/app/(marketplace)/listings/page.tsx
 import { getAllProfiles, getCities } from '@/services/advisor.service'
+import { findDutchCity } from '@/lib/netherlands-cities'
 import type { SearchFilters } from '@/types'
 import ListingsClient from './ListingsClient'
 
@@ -16,8 +17,13 @@ export default async function ListingsPage({ searchParams }: Props) {
   const initialFilters: SearchFilters = {}
   if (params.q) initialFilters.query = String(params.q)
   if (params.category) initialFilters.category = String(params.category) as SearchFilters['category']
-  if (params.city) initialFilters.city = String(params.city)
-  if (params.region) initialFilters.region = String(params.region)
+  const selectedCity = findDutchCity(typeof params.city === 'string' ? params.city : undefined)
+  if (selectedCity) {
+    initialFilters.city = selectedCity.city
+    initialFilters.region = selectedCity.region
+  } else if (params.region) {
+    initialFilters.region = String(params.region)
+  }
   if (params.tier) initialFilters.subscriptionLevel = String(params.tier) as SearchFilters['subscriptionLevel']
   if (params.verified) initialFilters.verified = true
   if (params.minAge) initialFilters.minAge = Number(params.minAge)

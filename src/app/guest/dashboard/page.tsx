@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import CityAutocomplete from '@/components/ui/CityAutocomplete'
 
 // Types
 
@@ -243,12 +244,11 @@ export default function GuestDashboardPage() {
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">
                     City <span style={{ color: 'var(--accent)' }}>*</span>
                   </label>
-                  <input
-                    type="text"
+                  <CityAutocomplete
+                    city={form.city}
+                    region=""
                     required
-                    value={form.city}
-                    onChange={(e) => upd('city', e.target.value)}
-                    className="input-dark"
+                    onChange={(city) => upd('city', city)}
                   />
                 </div>
               </div>
