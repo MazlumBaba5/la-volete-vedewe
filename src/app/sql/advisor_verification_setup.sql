@@ -5,9 +5,13 @@ ALTER TABLE public.advisors
   ADD COLUMN IF NOT EXISTS verification_note text;
 
 UPDATE public.advisors
-SET status = 'pending',
-    verification_status = COALESCE(NULLIF(verification_status, ''), 'not_submitted')
-WHERE is_verified IS DISTINCT FROM true;
+SET verification_status = CASE
+  WHEN is_verified IS TRUE THEN 'approved'
+  ELSE 'not_submitted'
+END
+WHERE verification_status IS NULL
+   OR verification_status = ''
+   OR (is_verified IS TRUE AND verification_status <> 'approved');
 
 DO $$
 BEGIN

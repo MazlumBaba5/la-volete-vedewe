@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -144,7 +145,7 @@ export default function AdminDashboard() {
           <div className="rounded-xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Next step</p>
             <p className="mt-3 text-sm text-white">Manual approval workflow</p>
-            <p className="mt-2 text-sm" style={{ color: '#d1d5db' }}>Admin actions will be added in the next pass.</p>
+            <p className="mt-2 text-sm" style={{ color: '#d1d5db' }}>Open each request, compare the private selfies with the public profile, then confirm or refuse.</p>
           </div>
         </div>
 
@@ -202,7 +203,7 @@ export default function AdminDashboard() {
                                 url: upload.url,
                                 label: upload.kind === 'front_selfie' ? 'Front selfie' : 'Proof selfie',
                               })}>
-                                <img src={upload.url} alt={upload.kind} className="h-80 w-full object-cover cursor-zoom-in" />
+                                <Image src={upload.url} alt={upload.kind} width={1200} height={960} className="h-80 w-full cursor-zoom-in object-cover" unoptimized />
                               </button>
                               <div className="px-4 py-3">
                                 <p className="text-sm font-semibold text-white">
@@ -229,7 +230,7 @@ export default function AdminDashboard() {
                                   url: photo.url,
                                   label: `Profile photo ${photo.sort_order + 1}`,
                                 })}>
-                                  <img src={photo.url} alt="" className="h-56 w-full object-cover cursor-zoom-in" />
+                                  <Image src={photo.url} alt="" width={960} height={720} className="h-56 w-full cursor-zoom-in object-cover" unoptimized />
                                 </button>
                                 <div className="px-3 py-2 flex items-center justify-between">
                                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -299,10 +300,13 @@ export default function AdminDashboard() {
               Close
             </button>
             <div className="mb-3 text-sm font-semibold text-white">{zoomedImage.label}</div>
-            <img
+            <Image
               src={zoomedImage.url}
               alt={zoomedImage.label}
+              width={1600}
+              height={1600}
               className="max-h-[88vh] w-full rounded-2xl object-contain"
+              unoptimized
             />
           </div>
         </div>

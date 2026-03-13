@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -921,7 +922,7 @@ export default function DashboardPage() {
                 <div className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shrink-0 overflow-hidden"
                   style={{ background: 'var(--bg-elevated)', border: '2px dashed rgba(255,255,255,0.1)' }}>
                   {photos.find((p) => p.isCover)
-                    ? <img src={photos.find((p) => p.isCover)!.url} alt="" className="w-full h-full object-cover" />
+                    ? <Image src={photos.find((p) => p.isCover)!.url} alt="" width={320} height={320} className="h-full w-full object-cover" unoptimized />
                     : '👤'}
                 </div>
                 <div className="flex-1 space-y-3">

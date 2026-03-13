@@ -46,22 +46,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File too large (max 10MB)' }, { status: 400 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-
-    const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        {
-          folder: `lvvd/advisors/${advisor.id}/verification`,
-          resource_type: 'image',
-        },
-        (error, uploadResult) => {
-          if (error) reject(error)
-          else resolve(uploadResult as { secure_url: string; public_id: string })
-        }
-      ).end(buffer)
-    })
-
     const { data: existing, error: existingError } = await admin
       .from('advisor_verification_uploads')
       .select('id, cloudinary_id')
@@ -82,7 +66,25 @@ export async function POST(req: NextRequest) {
           error: 'This verification photo was already uploaded and cannot be changed from the advisor dashboard.',
         }, { status: 400 })
       }
+    }
 
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+
+    const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        {
+          folder: `lvvd/advisors/${advisor.id}/verification`,
+          resource_type: 'image',
+        },
+        (error, uploadResult) => {
+          if (error) reject(error)
+          else resolve(uploadResult as { secure_url: string; public_id: string })
+        }
+      ).end(buffer)
+    })
+
+    if (existing?.cloudinary_id) {
       try {
         await cloudinary.uploader.destroy(existing.cloudinary_id, { resource_type: 'image' })
       } catch (destroyError) {
@@ -95,6 +97,11 @@ export async function POST(req: NextRequest) {
         .eq('id', existing.id)
 
       if (deleteExistingError) {
+        try {
+          await cloudinary.uploader.destroy(result.public_id, { resource_type: 'image' })
+        } catch (cleanupError) {
+          console.error('[verification upload] cleanup destroy failed', cleanupError)
+        }
         return NextResponse.json({ error: deleteExistingError.message }, { status: 500 })
       }
     }
@@ -111,6 +118,11 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (uploadError) {
+      try {
+        await cloudinary.uploader.destroy(result.public_id, { resource_type: 'image' })
+      } catch (cleanupError) {
+        console.error('[verification upload] cleanup destroy failed', cleanupError)
+      }
       if (isMissingVerificationSchema(uploadError.message)) {
         return NextResponse.json({ error: 'Run advisor_verification_setup.sql first to enable verification uploads.' }, { status: 400 })
       }
@@ -122,8 +134,11 @@ export async function POST(req: NextRequest) {
       .update({ verification_status: 'not_submitted', verification_submitted_at: null })
       .eq('id', advisor.id)
 
-    if (advisorUpdateError && isMissingVerificationSchema(advisorUpdateError.message)) {
-      return NextResponse.json({ error: 'Run advisor_verification_setup.sql first to enable verification uploads.' }, { status: 400 })
+    if (advisorUpdateError) {
+      if (isMissingVerificationSchema(advisorUpdateError.message)) {
+        return NextResponse.json({ error: 'Run advisor_verification_setup.sql first to enable verification uploads.' }, { status: 400 })
+      }
+      return NextResponse.json({ error: advisorUpdateError.message }, { status: 500 })
     }
 
     return NextResponse.json(uploadRow)
