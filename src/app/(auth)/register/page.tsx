@@ -356,7 +356,7 @@ export default function RegisterPage() {
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" required checked={form.agreeTerms} onChange={(e) => updateField('agreeTerms', e.target.checked)} className="accent-pink-500 mt-0.5 shrink-0" />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  I agree to the <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>Terms of Service</Link> and the <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>Privacy Policy</Link>.
+                  I agree to the <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>Terms & Conditions</Link> and the <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>Privacy Policy</Link>.
                 </span>
               </label>
             </div>

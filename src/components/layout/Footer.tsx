@@ -81,7 +81,8 @@ export default function Footer() {
                 { href: '/safety', label: 'Safety' },
                 { href: '/contact', label: 'Contact' },
                 { href: '/privacy', label: 'Privacy Policy' },
-                { href: '/terms', label: 'Terms of Service' },
+                { href: '/cookies', label: 'Cookie Statement' },
+                { href: '/terms', label: 'Terms & Conditions' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link
