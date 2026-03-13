@@ -41,6 +41,8 @@ export default function ChatInbox({
   role: 'guest' | 'advisor'
   initialConversationId?: string | null
 }) {
+  const hasLoadedConversationsRef = useRef(false)
+  const messagesCacheRef = useRef<Record<string, ChatMessage[]>>({})
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState('')
   const [message, setMessage] = useState('')
@@ -56,6 +58,7 @@ export default function ChatInbox({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sending, setSending] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -129,8 +132,11 @@ export default function ChatInbox({
     }).format(new Date(value))
   }
 
-  const loadConversations = useCallback(async () => {
-    setLoading(true)
+  const loadConversations = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background ?? false
+    if (!background || !hasLoadedConversationsRef.current) {
+      setLoading(true)
+    }
     setListError('')
     try {
       const res = await fetch('/api/chat', { cache: 'no-store' })
@@ -147,18 +153,24 @@ export default function ChatInbox({
         message: data.message ?? '',
       })
 
-      if (!selectedConversationId && (initialConversationId || data.items?.[0]?.id)) {
-        setSelectedConversationId(initialConversationId ?? data.items[0].id)
-      }
+      setSelectedConversationId((current) => current ?? initialConversationId ?? data.items?.[0]?.id ?? null)
     } catch (error) {
       setListError(error instanceof Error ? error.message : 'Unable to load conversations')
     } finally {
+      hasLoadedConversationsRef.current = true
       setLoading(false)
     }
-  }, [initialConversationId, selectedConversationId])
+  }, [initialConversationId])
 
   const loadMessages = useCallback(async (conversationId: string) => {
-    setMessagesLoading(true)
+    const cachedMessages = messagesCacheRef.current[conversationId]
+    if (cachedMessages) {
+      setMessages(cachedMessages)
+      setMessagesLoading(false)
+    } else {
+      setMessages([])
+      setMessagesLoading(true)
+    }
     setMessagesError('')
     try {
       const res = await fetch(`/api/chat/${conversationId}/messages`, { cache: 'no-store' })
@@ -166,7 +178,9 @@ export default function ChatInbox({
       if (!res.ok) {
         throw new Error(json.error ?? 'Unable to load messages')
       }
-      setMessages((json.messages as ChatMessage[]) ?? [])
+      const nextMessages = (json.messages as ChatMessage[]) ?? []
+      messagesCacheRef.current[conversationId] = nextMessages
+      setMessages(nextMessages)
     } catch (error) {
       setMessagesError(error instanceof Error ? error.message : 'Unable to load messages')
     } finally {
@@ -194,13 +208,19 @@ export default function ChatInbox({
   }, [loadMessages, selectedConversationId])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages, selectedConversationId])
-
-  useEffect(() => {
     if (selectedConversationId) {
       composerRef.current?.focus()
     }
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    if (!selectedConversationId) return
+
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current
+      if (!container) return
+      container.scrollTo({ top: container.scrollHeight, behavior: 'auto' })
+    })
   }, [selectedConversationId])
 
   useEffect(() => {
@@ -210,7 +230,7 @@ export default function ChatInbox({
     const conversationChannel = supabase
       .channel(`chat-conversations-${role}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_conversations' }, () => {
-        void loadConversations()
+        void loadConversations({ background: true })
       })
       .subscribe()
 
@@ -219,11 +239,11 @@ export default function ChatInbox({
           .channel(`chat-messages-${selectedId}`)
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${selectedId}` }, () => {
             void loadMessages(selectedId)
-            void loadConversations()
+            void loadConversations({ background: true })
           })
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${selectedId}` }, () => {
             void loadMessages(selectedId)
-            void loadConversations()
+            void loadConversations({ background: true })
           })
           .subscribe()
       : null
@@ -254,6 +274,10 @@ export default function ChatInbox({
     }
 
     setMessages((current) => [...current, optimisticMessage])
+    messagesCacheRef.current[selectedConversationId] = [
+      ...(messagesCacheRef.current[selectedConversationId] ?? []),
+      optimisticMessage,
+    ]
     setConversations((current) =>
       current.map((conversation) =>
         conversation.id === selectedConversationId
@@ -266,6 +290,11 @@ export default function ChatInbox({
       )
     )
     setMessage('')
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current
+      if (!container) return
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+    })
 
     try {
       const res = await fetch(`/api/chat/${selectedConversationId}/messages`, {
@@ -278,9 +307,12 @@ export default function ChatInbox({
         throw new Error(json.error ?? 'Unable to send message')
       }
       await loadMessages(selectedConversationId)
-      await loadConversations()
+      await loadConversations({ background: true })
     } catch (error) {
       setMessages((current) => current.filter((entry) => entry.id !== optimisticId))
+      messagesCacheRef.current[selectedConversationId] = (messagesCacheRef.current[selectedConversationId] ?? []).filter(
+        (entry) => entry.id !== optimisticId
+      )
       setMessage(trimmedMessage)
       setMessagesError(error instanceof Error ? error.message : 'Unable to send message')
     } finally {
@@ -334,8 +366,8 @@ export default function ChatInbox({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-        <div className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+      <div className="grid gap-4 lg:grid-cols-[340px_1fr] lg:h-[680px]">
+        <div className="rounded-xl overflow-hidden flex flex-col min-h-[320px] lg:min-h-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <div className="px-4 py-4 border-b space-y-3" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-white">Conversations</p>
@@ -348,7 +380,7 @@ export default function ChatInbox({
               className="input-dark text-sm"
             />
           </div>
-          <div className="max-h-[620px] overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto">
             {loading ? (
               <div className="px-4 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>Loading conversations...</div>
             ) : filteredConversations.length > 0 ? (
@@ -404,7 +436,7 @@ export default function ChatInbox({
           </div>
         </div>
 
-        <div className="rounded-xl overflow-hidden flex flex-col min-h-[620px]" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div className="rounded-xl overflow-hidden flex flex-col h-[620px] lg:h-full min-h-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
           <div className="px-5 py-4 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-3">
               {selectedConversation && (
@@ -432,7 +464,11 @@ export default function ChatInbox({
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))' }}>
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-3"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))' }}
+          >
             {!selectedConversation ? (
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Select a conversation to read and send messages.</p>
             ) : messagesLoading ? (
