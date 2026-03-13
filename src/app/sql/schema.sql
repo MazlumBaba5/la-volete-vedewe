@@ -14,6 +14,17 @@ CREATE TABLE public.advisor_media (
   CONSTRAINT advisor_media_pkey PRIMARY KEY (id),
   CONSTRAINT advisor_media_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
 );
+CREATE TABLE public.advisor_verification_uploads (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  advisor_id uuid NOT NULL,
+  kind text NOT NULL,
+  cloudinary_id text NOT NULL,
+  url text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT advisor_verification_uploads_pkey PRIMARY KEY (id),
+  CONSTRAINT advisor_verification_uploads_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id),
+  CONSTRAINT advisor_verification_uploads_kind_check CHECK (kind = ANY (ARRAY['front_selfie'::text, 'proof_selfie'::text]))
+);
 CREATE TABLE public.advisors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   profile_id uuid NOT NULL UNIQUE,
@@ -46,6 +57,9 @@ CREATE TABLE public.advisors (
   telegram_available boolean DEFAULT false,
   reviews_enabled boolean NOT NULL DEFAULT true,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::advisor_status,
+  verification_status text NOT NULL DEFAULT 'not_submitted'::text,
+  verification_submitted_at timestamp with time zone,
+  verification_note text,
   is_verified boolean DEFAULT false,
   is_featured boolean DEFAULT false,
   views_count integer NOT NULL DEFAULT 0,

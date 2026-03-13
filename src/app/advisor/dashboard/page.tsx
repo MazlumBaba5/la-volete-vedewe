@@ -120,6 +120,22 @@ type BillingSummary = {
   }>
 }
 
+type VerificationUpload = {
+  id: string
+  kind: 'front_selfie' | 'proof_selfie'
+  url: string
+  created_at: string
+}
+
+type VerificationSummary = {
+  status: string
+  is_verified: boolean
+  verification_status: 'not_submitted' | 'submitted' | 'approved' | 'rejected'
+  verification_submitted_at: string | null
+  verification_note: string | null
+  uploads: VerificationUpload[]
+}
+
 const SUBSCRIPTION_COMPARISON = [
   {
     title: 'Your personal advertisement',
@@ -210,6 +226,11 @@ export default function DashboardPage() {
   const [billingLoading, setBillingLoading] = useState(true)
   const [billingBusy, setBillingBusy] = useState<string | null>(null)
   const [billingMsg, setBillingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [verification, setVerification] = useState<VerificationSummary | null>(null)
+  const [verificationLoading, setVerificationLoading] = useState(true)
+  const [verificationUploading, setVerificationUploading] = useState<string | null>(null)
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false)
+  const [verificationMsg, setVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', advisor_category: 'woman', city: '', region: '', age: null, gender: 'female',
@@ -290,6 +311,7 @@ export default function DashboardPage() {
         })))
       }
 
+      await loadVerificationData()
       await loadBillingData()
     } else {
       const json = await res.json().catch(() => ({}))
@@ -315,6 +337,71 @@ export default function DashboardPage() {
       setBillingMsg({ type: 'error', text: 'Unable to load billing data right now.' })
     } finally {
       setBillingLoading(false)
+    }
+  }
+
+  async function loadVerificationData() {
+    setVerificationLoading(true)
+    try {
+      const res = await fetch('/api/advisor/verification', { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to load verification state')
+      }
+      setVerification(json as VerificationSummary)
+    } catch (error) {
+      console.error('[dashboard] verification load error:', error)
+      setVerificationMsg({ type: 'error', text: 'Unable to load verification data right now.' })
+    } finally {
+      setVerificationLoading(false)
+    }
+  }
+
+  async function handleVerificationUpload(kind: VerificationUpload['kind'], file: File | null) {
+    if (!file) return
+    setVerificationUploading(kind)
+    setVerificationMsg(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('kind', kind)
+
+      const res = await fetch('/api/advisor/verification/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setVerificationMsg({ type: 'error', text: json.error ?? 'Upload failed' })
+        return
+      }
+
+      setVerificationMsg({ type: 'success', text: 'Verification selfie uploaded successfully.' })
+      await loadVerificationData()
+    } catch {
+      setVerificationMsg({ type: 'error', text: 'Network error while uploading verification photo.' })
+    } finally {
+      setVerificationUploading(null)
+    }
+  }
+
+  async function handleSubmitVerification() {
+    setVerificationSubmitting(true)
+    setVerificationMsg(null)
+    try {
+      const res = await fetch('/api/advisor/verification', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        setVerificationMsg({ type: 'error', text: json.error ?? 'Unable to submit verification' })
+        return
+      }
+
+      setVerificationMsg({ type: 'success', text: 'Verification submitted. The LvvD team will review your two selfies before activating your profile.' })
+      await loadData()
+    } catch {
+      setVerificationMsg({ type: 'error', text: 'Network error while submitting verification.' })
+    } finally {
+      setVerificationSubmitting(false)
     }
   }
 
@@ -574,6 +661,121 @@ export default function DashboardPage() {
               <div>
                 <h1 className="text-2xl font-black text-white">Hello, {advisor.name}!</h1>
                 <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Here is a summary of your activity</p>
+              </div>
+
+              <div className="rounded-xl p-6 space-y-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Verification</p>
+                    <h2 className="text-xl font-black text-white">
+                      {verificationLoading
+                        ? 'Loading verification...'
+                        : verification?.verification_status === 'approved'
+                        ? 'Verification confirmed'
+                        : verification?.verification_status === 'rejected'
+                        ? 'Verification refused'
+                        : verification?.verification_status === 'submitted'
+                        ? 'Verification submitted'
+                        : advisor.is_verified
+                        ? 'Profile verified'
+                        : 'Verification required'}
+                    </h2>
+                    <p className="text-sm max-w-2xl" style={{ color: '#d1d5db' }}>
+                      {verification?.verification_status === 'approved'
+                        ? 'Your verification has been approved by the LvvD team and your profile can stay public.'
+                        : verification?.verification_status === 'rejected'
+                        ? 'Your verification was refused by the LvvD team. Review the note below, update your selfies and submit again.'
+                        : 'Upload one unfiltered frontal selfie with your chest to top of head visible, plus one selfie holding a local receipt or newspaper with a clearly visible date.'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl px-4 py-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                    <p className="text-xs uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Public status</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {advisor.status === 'active' ? 'Visible on the site' : 'Hidden until verified'}
+                    </p>
+                  </div>
+                </div>
+
+                {verificationMsg && (
+                  <div className="text-xs px-4 py-3 rounded-lg"
+                    style={{
+                      background: verificationMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${verificationMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      color: verificationMsg.type === 'success' ? '#86efac' : '#fca5a5',
+                    }}>
+                    {verificationMsg.text}
+                  </div>
+                )}
+
+                {verification?.verification_note && (
+                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#fde68a' }}>
+                    Team note: {verification.verification_note}
+                  </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  {([
+                    {
+                      kind: 'front_selfie',
+                      title: 'Front selfie',
+                      description: 'Good light, no filters, frontal pose, chest to top of head clearly visible.',
+                    },
+                    {
+                      kind: 'proof_selfie',
+                      title: 'Receipt or newspaper selfie',
+                      description: 'Hold a local receipt or newspaper so the place/date is readable in the photo.',
+                    },
+                  ] as const).map((item) => {
+                    const upload = verification?.uploads.find((entry) => entry.kind === item.kind)
+                    return (
+                      <div key={item.kind} className="rounded-xl p-4 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div className="space-y-1">
+                          <h3 className="font-semibold text-white">{item.title}</h3>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
+                        </div>
+
+                        {upload ? (
+                          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+                            <img src={upload.url} alt={item.title} className="w-full h-56 object-cover" />
+                          </div>
+                        ) : (
+                          <div className="rounded-xl h-56 flex items-center justify-center text-sm text-center px-6"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
+                            No verification photo uploaded yet.
+                          </div>
+                        )}
+
+                        <label className="btn-outline text-sm px-4 py-2 cursor-pointer inline-flex">
+                          {verificationUploading === item.kind ? 'Uploading...' : upload ? 'Replace photo' : 'Upload photo'}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            disabled={verificationUploading !== null}
+                            onChange={(e) => {
+                              handleVerificationUpload(item.kind, e.target.files?.[0] ?? null)
+                              e.currentTarget.value = ''
+                            }}
+                          />
+                        </label>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="flex items-center gap-4 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={handleSubmitVerification}
+                    disabled={verificationSubmitting || verificationLoading || !verification?.uploads.some((item) => item.kind === 'front_selfie') || !verification?.uploads.some((item) => item.kind === 'proof_selfie')}
+                    className="btn-accent px-6 py-2.5 text-sm disabled:opacity-60"
+                  >
+                    {verificationSubmitting ? 'Submitting...' : verification?.verification_status === 'submitted' ? 'Submitted to LvvD team' : 'Submit verification'}
+                  </button>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Your profile stays hidden until the LvvD team approves the verification.
+                  </p>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

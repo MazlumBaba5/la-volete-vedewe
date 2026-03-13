@@ -179,7 +179,7 @@ export async function POST(req: Request) {
         availability: deriveAvailability(dateTypes),
         phone: body.phone?.trim() || null,
         whatsapp_available: Boolean(body.whatsappAvailable),
-        status: 'active',
+        status: 'pending',
       }])
 
       if (error) {

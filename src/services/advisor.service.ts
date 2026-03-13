@@ -158,10 +158,8 @@ async function enrichWithSubscriptions(
   return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
 }
 
-// Statuses that should be visible in the public marketplace.
-// 'pending' is included because advisors register as 'active' via the API;
-// any manually-inserted row defaults to 'pending' and should still appear.
-const VISIBLE_STATUSES = ['active', 'pending'] as const
+// Only approved profiles should be visible in the public marketplace.
+const VISIBLE_STATUSES = ['active'] as const
 
 export async function getAllProfiles(): Promise<Profile[]> {
   const supabase = createAdminClient()
