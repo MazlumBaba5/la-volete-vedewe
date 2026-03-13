@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import ChatInbox from '@/components/chat/ChatInbox'
 
-type TabId = 'account' | 'settings'
+type TabId = 'account' | 'chat' | 'settings'
 type ClientMembershipResponse = {
   schema_ready: boolean
   currentPlan: 'free' | 'gold'
@@ -23,6 +24,7 @@ type ClientMembershipResponse = {
 export default function GuestDashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('account')
+  const [initialConversationId, setInitialConversationId] = useState<string | null>(null)
   const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(true)
   const [membershipLoading, setMembershipLoading] = useState(true)
@@ -45,6 +47,16 @@ export default function GuestDashboardPage() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
     const billingStatus = searchParams.get('billing')
+    const requestedTab = searchParams.get('tab')
+    const requestedConversation = searchParams.get('conversation')
+
+    if (requestedTab === 'account' || requestedTab === 'chat' || requestedTab === 'settings') {
+      setActiveTab(requestedTab)
+    }
+
+    if (requestedConversation) {
+      setInitialConversationId(requestedConversation)
+    }
 
     if (billingStatus === 'success') {
       setAccountMsg({ type: 'success', text: 'Stripe checkout completed. Gold activation will appear as soon as Stripe confirms the subscription.' })
@@ -53,7 +65,12 @@ export default function GuestDashboardPage() {
     }
 
     if (billingStatus) {
-      router.replace('/guest/dashboard', { scroll: false })
+      const target = requestedConversation
+        ? `/guest/dashboard?tab=chat&conversation=${requestedConversation}`
+        : requestedTab
+        ? `/guest/dashboard?tab=${requestedTab}`
+        : '/guest/dashboard'
+      router.replace(target, { scroll: false })
     }
   }, [router])
 
@@ -173,10 +190,11 @@ export default function GuestDashboardPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         <div className="flex gap-1">
-          {([
-            { id: 'account', label: 'Account' },
-            { id: 'settings', label: 'Settings' },
-          ] as const).map((tab) => (
+            {([
+              { id: 'account', label: 'Account' },
+              { id: 'chat', label: 'Chat' },
+              { id: 'settings', label: 'Settings' },
+            ] as const).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -303,6 +321,10 @@ export default function GuestDashboardPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <ChatInbox role="guest" initialConversationId={initialConversationId} />
         )}
 
         {activeTab === 'settings' && (

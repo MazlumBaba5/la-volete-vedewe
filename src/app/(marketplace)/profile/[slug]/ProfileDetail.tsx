@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { type Profile, type ProfilePhoto, type ReviewItem } from '@/types';
 import { TierBadge } from '@/components/ui/Badge';
 import ContactModal from '@/components/marketplace/ContactModal';
 import ProfileCard from '@/components/marketplace/ProfileCard';
+import { createClient } from '@/lib/supabase/client';
 
 interface Props {
   profile: Profile;
@@ -35,6 +37,7 @@ function StarRow({ rating, size = 'text-base' }: { rating: number; size?: string
 }
 
 export default function ProfileDetail({ profile, related }: Props) {
+  const router = useRouter();
   const reviewsApiUrl = profile.advisorId ? `/api/advisor/${profile.advisorId}/reviews` : null;
   const [selectedPhoto, setSelectedPhoto] = useState<ProfilePhoto | undefined>(
     profile.photos.find((p: ProfilePhoto) => p.isMain) ?? profile.photos[0]
@@ -56,6 +59,9 @@ export default function ProfileDetail({ profile, related }: Props) {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSubmitMsg, setReviewSubmitMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [viewerRole, setViewerRole] = useState<string | null>(null);
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatMsg, setChatMsg] = useState('');
 
   const availabilityColor: Record<string, string> = {
     available: 'var(--success)',
@@ -68,6 +74,13 @@ export default function ProfileDetail({ profile, related }: Props) {
     busy: 'Busy',
     offline: 'Offline',
   };
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setViewerRole(user?.user_metadata?.role ?? null);
+    });
+  }, []);
 
   useEffect(() => {
     if (!profile.reviewsEnabled || !reviewsApiUrl) {
@@ -148,6 +161,39 @@ export default function ProfileDetail({ profile, related }: Props) {
       setReviewSubmitMsg({ type: 'error', text: 'Network error. Please try again.' });
     } finally {
       setReviewSubmitting(false);
+    }
+  }
+
+  async function handleOpenChat() {
+    if (!profile.advisorId) return;
+
+    if (!viewerRole) {
+      router.push('/login');
+      return;
+    }
+
+    if (viewerRole !== 'guest') {
+      setChatMsg('Only registered client accounts can start a new chat from the public profile.');
+      return;
+    }
+
+    setChatBusy(true);
+    setChatMsg('');
+    try {
+      const res = await fetch('/api/chat/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ advisorId: profile.advisorId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to open chat');
+      }
+      router.push(`/guest/dashboard?tab=chat&conversation=${json.conversationId}`);
+    } catch (error) {
+      setChatMsg(error instanceof Error ? error.message : 'Unable to open chat');
+    } finally {
+      setChatBusy(false);
     }
   }
 
@@ -498,6 +544,13 @@ export default function ProfileDetail({ profile, related }: Props) {
             >
               {/* Name & info */}
               <div>
+                {chatMsg && (
+                  <div className="mb-4 rounded-lg px-4 py-3 text-xs"
+                    style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe' }}>
+                    {chatMsg}
+                  </div>
+                )}
+
                 <div className="flex items-start justify-between">
                   <div>
                     <h1 className="text-2xl font-black text-white">
@@ -586,6 +639,15 @@ export default function ProfileDetail({ profile, related }: Props) {
               </div>
 
               {/* CTA */}
+              <button
+                type="button"
+                onClick={handleOpenChat}
+                disabled={chatBusy || !profile.advisorId}
+                className="btn-outline w-full justify-center py-3 text-sm font-semibold disabled:opacity-60"
+              >
+                {chatBusy ? 'Opening chat...' : viewerRole === 'guest' ? 'Open live chat' : viewerRole ? 'Live chat for client accounts' : 'Sign in to start chat'}
+              </button>
+
               <button
                 onClick={() => setShowContact(true)}
                 className="btn-accent w-full justify-center py-3 text-sm font-semibold"

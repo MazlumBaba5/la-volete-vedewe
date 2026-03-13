@@ -23,6 +23,7 @@ import {
 } from '@/lib/advisor-profile-options'
 import CityAutocomplete from '@/components/ui/CityAutocomplete'
 import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
+import ChatInbox from '@/components/chat/ChatInbox'
 
 // Types
 type GenderType = 'female' | 'male' | 'shemale'
@@ -95,7 +96,7 @@ type ProfileForm = {
   telegram_available: boolean
 }
 
-type TabId = 'overview' | 'profile' | 'subscription' | 'settings'
+type TabId = 'overview' | 'profile' | 'subscription' | 'chat' | 'settings'
 type BillingTier = 'free' | 'premium' | 'diamond'
 type CheckoutPlan = BillingTier | 'starter' | 'boost' | 'power'
 
@@ -220,6 +221,7 @@ function formatShortDate(value: string | null) {
 export default function DashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [initialConversationId, setInitialConversationId] = useState<string | null>(null)
   const [advisor, setAdvisor] = useState<AdvisorRow | null>(null)
   const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
@@ -277,8 +279,12 @@ export default function DashboardPage() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'overview' || requestedTab === 'profile' || requestedTab === 'subscription' || requestedTab === 'settings') {
+    const requestedConversation = searchParams.get('conversation')
+    if (requestedTab === 'overview' || requestedTab === 'profile' || requestedTab === 'subscription' || requestedTab === 'chat' || requestedTab === 'settings') {
       setActiveTab(requestedTab)
+    }
+    if (requestedConversation) {
+      setInitialConversationId(requestedConversation)
     }
 
     const billingStatus = searchParams.get('billing')
@@ -676,12 +682,13 @@ export default function DashboardPage() {
         {/* Sidebar */}
         <aside className="hidden lg:flex flex-col w-56 shrink-0 min-h-[calc(100vh-3.5rem)] py-6 px-4 gap-1"
           style={{ borderRight: '1px solid var(--border)' }}>
-          {([
-            { id: 'overview', icon: '📊', label: 'Overview' },
-            { id: 'profile', icon: '👤', label: 'My profile' },
-            { id: 'subscription', icon: '💎', label: 'Subscription' },
-            { id: 'settings', icon: '⚙️', label: 'Settings' },
-          ] as const).map((tab) => (
+            {([
+              { id: 'overview', icon: '📊', label: 'Overview' },
+              { id: 'profile', icon: '👤', label: 'My profile' },
+              { id: 'subscription', icon: '💎', label: 'Subscription' },
+              { id: 'chat', icon: '💬', label: 'Chat' },
+              { id: 'settings', icon: '⚙️', label: 'Settings' },
+            ] as const).map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={{
@@ -712,6 +719,7 @@ export default function DashboardPage() {
               { id: 'overview', label: 'Overview' },
               { id: 'profile', label: 'Profile' },
               { id: 'subscription', label: 'Subscription' },
+              { id: 'chat', label: 'Chat' },
               { id: 'settings', label: 'Settings' },
             ] as const).map((tab) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -1532,6 +1540,10 @@ export default function DashboardPage() {
                 Secure payment via Stripe · Cancel anytime · No commitment
               </p>
             </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <ChatInbox role="advisor" initialConversationId={initialConversationId} />
           )}
 
           {/* ── SETTINGS ── */}

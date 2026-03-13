@@ -79,6 +79,29 @@ CREATE TABLE public.cities (
   region text,
   CONSTRAINT cities_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.chat_conversations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  advisor_id uuid NOT NULL,
+  guest_profile_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_message_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_message_preview text,
+  CONSTRAINT chat_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_conversations_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
+);
+CREATE TABLE public.chat_messages (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  conversation_id uuid NOT NULL,
+  sender_profile_id uuid NOT NULL,
+  sender_role text NOT NULL,
+  body text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  read_at timestamp with time zone,
+  CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.chat_conversations(id),
+  CONSTRAINT chat_messages_sender_role_check CHECK (sender_role = ANY (ARRAY['advisor'::text, 'guest'::text]))
+);
 CREATE TABLE public.client_memberships (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   profile_id uuid NOT NULL,
