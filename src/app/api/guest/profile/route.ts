@@ -18,6 +18,7 @@ export async function GET() {
       profile_id: user.id,
       name: username,
       role: user.user_metadata?.role ?? 'guest',
+      avatar_url: (user.user_metadata?.avatar_url as string | undefined) ?? null,
     })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

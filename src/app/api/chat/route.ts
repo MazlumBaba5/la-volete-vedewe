@@ -11,16 +11,18 @@ type ConversationRow = {
   created_at: string
 }
 
-async function getGuestName(userId: string) {
+async function getGuestInfo(userId: string) {
   const admin = createAdminClient()
   const { data, error } = await admin.auth.admin.getUserById(userId)
-  if (error) return 'Client'
-  return (
-    (data.user.user_metadata?.username as string | undefined) ||
-    (data.user.user_metadata?.name as string | undefined) ||
-    data.user.email?.split('@')[0] ||
-    'Client'
-  )
+  if (error) return { name: 'Client', avatarUrl: null as string | null }
+  return {
+    name:
+      (data.user.user_metadata?.username as string | undefined) ||
+      (data.user.user_metadata?.name as string | undefined) ||
+      data.user.email?.split('@')[0] ||
+      'Client',
+    avatarUrl: (data.user.user_metadata?.avatar_url as string | undefined) ?? null,
+  }
 }
 
 export async function GET() {
@@ -62,7 +64,7 @@ export async function GET() {
 
       conversations = (data ?? []) as ConversationRow[]
       const items = await Promise.all(conversations.map(async (conversation) => {
-        const guestName = await getGuestName(conversation.guest_profile_id)
+        const guestInfo = await getGuestInfo(conversation.guest_profile_id)
         const { count: unreadCount } = await admin
           .from('chat_messages')
           .select('*', { count: 'exact', head: true })
@@ -72,9 +74,10 @@ export async function GET() {
 
         return {
           id: conversation.id,
-          counterpartName: guestName,
+          counterpartName: guestInfo.name,
           counterpartRole: 'guest',
           counterpartSlug: null,
+          counterpartAvatarUrl: guestInfo.avatarUrl,
           advisorId: conversation.advisor_id,
           lastMessageAt: conversation.last_message_at,
           lastMessagePreview: conversation.last_message_preview,
@@ -105,6 +108,12 @@ export async function GET() {
         .select('name, slug')
         .eq('id', conversation.advisor_id)
         .maybeSingle()
+      const { data: cover } = await admin
+        .from('advisor_media')
+        .select('url')
+        .eq('advisor_id', conversation.advisor_id)
+        .eq('is_cover', true)
+        .maybeSingle()
 
       const { count: unreadCount } = await admin
         .from('chat_messages')
@@ -118,6 +127,7 @@ export async function GET() {
         counterpartName: (advisor?.name as string | undefined) ?? 'Advisor',
         counterpartRole: 'advisor',
         counterpartSlug: (advisor?.slug as string | undefined) ?? null,
+        counterpartAvatarUrl: (cover?.url as string | undefined) ?? null,
         advisorId: conversation.advisor_id,
         lastMessageAt: conversation.last_message_at,
         lastMessagePreview: conversation.last_message_preview,

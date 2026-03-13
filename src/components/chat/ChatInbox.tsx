@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 type ChatConversation = {
@@ -9,6 +10,7 @@ type ChatConversation = {
   counterpartName: string
   counterpartRole: 'guest' | 'advisor'
   counterpartSlug: string | null
+  counterpartAvatarUrl?: string | null
   advisorId: string
   lastMessageAt: string
   lastMessagePreview: string | null
@@ -65,6 +67,47 @@ export default function ChatInbox({
       .slice(0, 2)
       .join('')
       .toUpperCase()
+  }
+
+  function Avatar({
+    name,
+    url,
+    role: avatarRole,
+    size = 44,
+  }: {
+    name: string
+    url?: string | null
+    role: 'guest' | 'advisor'
+    size?: number
+  }) {
+    if (url) {
+      return (
+        <Image
+          src={url}
+          alt={name}
+          width={size}
+          height={size}
+          className="rounded-2xl object-cover"
+          style={{ width: size, height: size }}
+          unoptimized
+        />
+      )
+    }
+
+    return (
+      <div
+        className="flex items-center justify-center rounded-2xl text-xs font-bold"
+        style={{
+          width: size,
+          height: size,
+          background: avatarRole === 'advisor' ? 'rgba(233,30,140,0.16)' : 'rgba(59,130,246,0.16)',
+          color: avatarRole === 'advisor' ? '#f9a8d4' : '#bfdbfe',
+          border: `1px solid ${avatarRole === 'advisor' ? 'rgba(233,30,140,0.24)' : 'rgba(59,130,246,0.24)'}`,
+        }}
+      >
+        {getInitials(name)}
+      </div>
+    )
   }
 
   function formatConversationTime(value: string) {
@@ -321,16 +364,11 @@ export default function ChatInbox({
                   }}
                 >
                   <div className="flex items-start gap-3">
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
-                      style={{
-                        background: conversation.counterpartRole === 'advisor' ? 'rgba(233,30,140,0.16)' : 'rgba(59,130,246,0.16)',
-                        color: conversation.counterpartRole === 'advisor' ? '#f9a8d4' : '#bfdbfe',
-                        border: `1px solid ${conversation.counterpartRole === 'advisor' ? 'rgba(233,30,140,0.24)' : 'rgba(59,130,246,0.24)'}`,
-                      }}
-                    >
-                      {getInitials(conversation.counterpartName)}
-                    </div>
+                    <Avatar
+                      name={conversation.counterpartName}
+                      url={conversation.counterpartAvatarUrl}
+                      role={conversation.counterpartRole}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -370,16 +408,11 @@ export default function ChatInbox({
           <div className="px-5 py-4 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-3">
               {selectedConversation && (
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-bold"
-                  style={{
-                    background: selectedConversation.counterpartRole === 'advisor' ? 'rgba(233,30,140,0.16)' : 'rgba(59,130,246,0.16)',
-                    color: selectedConversation.counterpartRole === 'advisor' ? '#f9a8d4' : '#bfdbfe',
-                    border: `1px solid ${selectedConversation.counterpartRole === 'advisor' ? 'rgba(233,30,140,0.24)' : 'rgba(59,130,246,0.24)'}`,
-                  }}
-                >
-                  {getInitials(selectedConversation.counterpartName)}
-                </div>
+                <Avatar
+                  name={selectedConversation.counterpartName}
+                  url={selectedConversation.counterpartAvatarUrl}
+                  role={selectedConversation.counterpartRole}
+                />
               )}
               <div>
               <p className="font-semibold text-white">

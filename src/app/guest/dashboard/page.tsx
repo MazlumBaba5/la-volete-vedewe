@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -21,11 +22,19 @@ type ClientMembershipResponse = {
   } | null
 }
 
+type GuestProfileResponse = {
+  profile_id: string
+  name: string
+  role: string
+  avatar_url: string | null
+}
+
 export default function GuestDashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('account')
   const [initialConversationId, setInitialConversationId] = useState<string | null>(null)
   const [username, setUsername] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [membershipLoading, setMembershipLoading] = useState(true)
   const [membershipBusy, setMembershipBusy] = useState<'checkout' | null>(null)
@@ -38,6 +47,7 @@ export default function GuestDashboardPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [avatarBusy, setAvatarBusy] = useState<'upload' | 'remove' | null>(null)
 
   useEffect(() => {
     loadData()
@@ -84,15 +94,75 @@ export default function GuestDashboardPage() {
       return
     }
 
-    const nextUsername =
-      (user.user_metadata?.username as string | undefined) ||
-      (user.user_metadata?.name as string | undefined) ||
-      user.email?.split('@')[0] ||
-      'guest'
-
-    setUsername(nextUsername)
+    try {
+      const res = await fetch('/api/guest/profile', { cache: 'no-store' })
+      const json = await res.json() as GuestProfileResponse
+      if (res.ok) {
+        setUsername(json.name)
+        setAvatarUrl(json.avatar_url)
+      } else {
+        const nextUsername =
+          (user.user_metadata?.username as string | undefined) ||
+          (user.user_metadata?.name as string | undefined) ||
+          user.email?.split('@')[0] ||
+          'guest'
+        setUsername(nextUsername)
+        setAvatarUrl((user.user_metadata?.avatar_url as string | undefined) ?? null)
+      }
+    } catch {
+      const nextUsername =
+        (user.user_metadata?.username as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        user.email?.split('@')[0] ||
+        'guest'
+      setUsername(nextUsername)
+      setAvatarUrl((user.user_metadata?.avatar_url as string | undefined) ?? null)
+    }
     await loadMembership()
     setLoading(false)
+  }
+
+  async function handleAvatarUpload(file: File | null) {
+    if (!file) return
+
+    setAvatarBusy('upload')
+    setSettingsMsg(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/guest/avatar', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to upload avatar')
+      }
+      setAvatarUrl(json.avatar_url as string)
+      setSettingsMsg({ type: 'success', text: 'Avatar updated.' })
+    } catch (error) {
+      setSettingsMsg({ type: 'error', text: error instanceof Error ? error.message : 'Unable to upload avatar' })
+    } finally {
+      setAvatarBusy(null)
+    }
+  }
+
+  async function handleAvatarRemove() {
+    setAvatarBusy('remove')
+    setSettingsMsg(null)
+    try {
+      const res = await fetch('/api/guest/avatar', { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to remove avatar')
+      }
+      setAvatarUrl(null)
+      setSettingsMsg({ type: 'success', text: 'Avatar removed.' })
+    } catch (error) {
+      setSettingsMsg({ type: 'error', text: error instanceof Error ? error.message : 'Unable to remove avatar' })
+    } finally {
+      setAvatarBusy(null)
+    }
   }
 
   async function loadMembership() {
@@ -183,6 +253,15 @@ export default function GuestDashboardPage() {
           </span>
         </Link>
         <div className="flex items-center gap-3">
+          <div className="hidden h-9 w-9 overflow-hidden rounded-xl sm:block" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+            {avatarUrl ? (
+              <Image src={avatarUrl} alt={username} width={36} height={36} className="h-full w-full object-cover" unoptimized />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs font-bold text-white">
+                {username.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
           <span className="text-sm font-medium text-gray-200 hidden sm:block">{username}</span>
           <button onClick={handleSignOut} className="btn-ghost text-xs px-3 py-1.5">Sign out</button>
         </div>
@@ -232,8 +311,21 @@ export default function GuestDashboardPage() {
               )}
 
               <div className="rounded-xl p-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Username</p>
-                <p className="mt-2 text-lg font-bold text-white">{username}</p>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 overflow-hidden rounded-2xl" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)' }}>
+                    {avatarUrl ? (
+                      <Image src={avatarUrl} alt={username} width={64} height={64} className="h-full w-full object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-bold text-white">
+                        {username.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Username</p>
+                    <p className="mt-2 text-lg font-bold text-white">{username}</p>
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-xl p-5 space-y-4" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
@@ -354,6 +446,49 @@ export default function GuestDashboardPage() {
               <div>
                 <label className="block text-xs font-medium text-gray-400 mb-1.5">Username</label>
                 <input type="text" value={username} readOnly className="input-dark opacity-70" />
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs font-medium text-gray-400">Avatar</label>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="h-20 w-20 overflow-hidden rounded-2xl" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                    {avatarUrl ? (
+                      <Image src={avatarUrl} alt={username} width={80} height={80} className="h-full w-full object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-bold text-white">
+                        {username.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <label className="btn-outline text-sm px-4 py-2 cursor-pointer inline-flex">
+                      {avatarBusy === 'upload' ? 'Uploading...' : 'Upload avatar'}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={avatarBusy !== null}
+                        onChange={(e) => {
+                          void handleAvatarUpload(e.target.files?.[0] ?? null)
+                          e.currentTarget.value = ''
+                        }}
+                      />
+                    </label>
+                    {avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => void handleAvatarRemove()}
+                        disabled={avatarBusy !== null}
+                        className="btn-ghost text-sm px-4 py-2 disabled:opacity-60"
+                      >
+                        {avatarBusy === 'remove' ? 'Removing...' : 'Remove avatar'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  This image is shown to advisors as your chat avatar.
+                </p>
               </div>
 
               <div>
