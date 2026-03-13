@@ -25,7 +25,7 @@ import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
 
 // Types
 type GenderType = 'female' | 'male' | 'shemale'
-type AvailabilityType = 'incall' | 'outcall' | 'both'
+type AvailabilityType = 'incall' | 'outcall' | 'both' | 'offline'
 type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale'
 
 type AdvisorRow = {
@@ -263,6 +263,7 @@ export default function DashboardPage() {
   const [settingsReviewsEnabled, setSettingsReviewsEnabled] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [accountActionBusy, setAccountActionBusy] = useState<'offline' | 'online' | 'delete' | null>(null)
   const reviewCount = advisor?.review_count ?? 0
   const reviewAverage = advisor?.review_average ?? 0
   const cannotDisableReviews = settingsReviewsEnabled && reviewCount > 0 && reviewAverage <= 2
@@ -517,6 +518,78 @@ export default function DashboardPage() {
       setAdvisor((current) => current ? { ...current, reviews_enabled: settingsReviewsEnabled } : current)
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  async function handleToggleOffline() {
+    if (!advisor) return
+
+    const makeOffline = advisor.availability !== 'offline'
+    const confirmed = window.confirm(
+      makeOffline
+        ? 'Set your public profile offline and hide it from the marketplace?'
+        : 'Bring your profile back online and make it visible again?'
+    )
+
+    if (!confirmed) return
+
+    const action = makeOffline ? 'offline' : 'online'
+    setAccountActionBusy(action)
+    setSettingsMsg(null)
+
+    try {
+      const res = await fetch('/api/advisor/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setSettingsMsg({ type: 'error', text: json.error ?? 'Unable to update profile visibility.' })
+        return
+      }
+
+      setSettingsMsg({
+        type: 'success',
+        text: action === 'offline'
+          ? 'Your profile is now offline and hidden from the marketplace.'
+          : 'Your profile is back online.',
+      })
+      await loadData()
+    } catch {
+      setSettingsMsg({ type: 'error', text: 'Network error while updating profile visibility.' })
+    } finally {
+      setAccountActionBusy(null)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    const confirmed = window.confirm(
+      'Delete your advisor account permanently? This will remove your profile, photos and account data.'
+    )
+
+    if (!confirmed) return
+
+    setAccountActionBusy('delete')
+    setSettingsMsg(null)
+
+    try {
+      const res = await fetch('/api/advisor/account', { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setSettingsMsg({ type: 'error', text: json.error ?? 'Unable to delete your account.' })
+        return
+      }
+
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.replace('/')
+    } catch {
+      setSettingsMsg({ type: 'error', text: 'Network error while deleting your account.' })
+    } finally {
+      setAccountActionBusy(null)
     }
   }
 
@@ -1530,12 +1603,47 @@ export default function DashboardPage() {
 
               <div className="rounded-xl p-6 space-y-4" style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
                 <h3 className="font-semibold" style={{ color: '#fca5a5' }}>Danger zone</h3>
-                <p className="text-sm text-gray-400">Deleting your account will permanently remove all your data.</p>
-                <button type="button" onClick={() => alert('Please contact support to delete your account.')}
-                  className="text-sm px-4 py-2 rounded-lg border transition-all"
-                  style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}>
-                  Delete account
-                </button>
+                <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-white">Profile visibility</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {advisor?.availability === 'offline'
+                        ? 'Your profile is currently hidden from the marketplace.'
+                        : 'Set your profile offline to hide it from the marketplace without deleting your account.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleOffline}
+                    disabled={accountActionBusy === 'offline' || accountActionBusy === 'online'}
+                    className="text-sm px-4 py-2 rounded-lg border transition-all disabled:opacity-60"
+                    style={{ background: 'transparent', borderColor: 'rgba(251,191,36,0.35)', color: '#fbbf24' }}
+                  >
+                    {accountActionBusy === 'offline' || accountActionBusy === 'online'
+                      ? 'Updating...'
+                      : advisor?.availability === 'offline'
+                      ? 'Bring profile online'
+                      : 'Set profile offline'}
+                  </button>
+                </div>
+
+                <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-white">Delete account</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Deleting your account will permanently remove your advisor profile and account data.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={accountActionBusy === 'delete'}
+                    className="text-sm px-4 py-2 rounded-lg border transition-all disabled:opacity-60"
+                    style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}
+                  >
+                    {accountActionBusy === 'delete' ? 'Deleting...' : 'Delete account'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

@@ -113,8 +113,10 @@ function sortByTier(profiles: Profile[]): Profile[] {
 
 function isLegacyPublicProfile(row: Record<string, unknown>) {
   const status = row.status as string | undefined
+  const availability = row.availability as string | undefined
   const createdAt = Date.parse(String(row.created_at ?? ''))
 
+  if (availability === 'offline') return false
   if (status === 'active') return true
   if (status === 'pending' && Number.isFinite(createdAt) && createdAt < VERIFICATION_GRANDFATHER_DATE) {
     return true
