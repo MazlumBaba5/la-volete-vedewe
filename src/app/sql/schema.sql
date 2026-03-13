@@ -59,6 +59,7 @@ CREATE TABLE public.advisors (
   status USER-DEFINED NOT NULL DEFAULT 'pending'::advisor_status,
   verification_status text NOT NULL DEFAULT 'not_submitted'::text,
   verification_submitted_at timestamp with time zone,
+  verification_reviewed_at timestamp with time zone,
   verification_note text,
   is_verified boolean DEFAULT false,
   is_featured boolean DEFAULT false,

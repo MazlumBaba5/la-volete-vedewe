@@ -1,6 +1,7 @@
 ALTER TABLE public.advisors
   ADD COLUMN IF NOT EXISTS verification_status text NOT NULL DEFAULT 'not_submitted',
   ADD COLUMN IF NOT EXISTS verification_submitted_at timestamp with time zone,
+  ADD COLUMN IF NOT EXISTS verification_reviewed_at timestamp with time zone,
   ADD COLUMN IF NOT EXISTS verification_note text;
 
 UPDATE public.advisors

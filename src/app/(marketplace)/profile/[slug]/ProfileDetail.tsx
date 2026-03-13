@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { type Profile, type ProfilePhoto, type ReviewItem } from '@/types';
-import { TierBadge, VerifiedBadge } from '@/components/ui/Badge';
+import { TierBadge } from '@/components/ui/Badge';
 import ContactModal from '@/components/marketplace/ContactModal';
 import ProfileCard from '@/components/marketplace/ProfileCard';
 
@@ -533,12 +533,6 @@ export default function ProfileDetail({ profile, related }: Props) {
                   <span className="text-sm" style={{ color: availabilityColor[profile.availability] }}>
                     {availabilityLabel[profile.availability]}
                   </span>
-                  {profile.isVerified && (
-                    <>
-                      <span style={{ color: 'var(--border)' }}>·</span>
-                      <VerifiedBadge />
-                    </>
-                  )}
                 </div>
 
                 {profile.reviewsEnabled && !reviewsLoading && (

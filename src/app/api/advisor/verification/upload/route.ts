@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const admin = createAdminClient()
     const { data: advisor, error: advisorError } = await admin
       .from('advisors')
-      .select('id')
+      .select('id, verification_status')
       .eq('profile_id', user.id)
       .single()
 
@@ -77,8 +77,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (existing?.cloudinary_id) {
-      await cloudinary.uploader.destroy(existing.cloudinary_id)
-      await admin.from('advisor_verification_uploads').delete().eq('id', existing.id)
+      if (advisor.verification_status !== 'rejected') {
+        return NextResponse.json({
+          error: 'This verification photo was already uploaded and cannot be changed from the advisor dashboard.',
+        }, { status: 400 })
+      }
+
+      try {
+        await cloudinary.uploader.destroy(existing.cloudinary_id, { resource_type: 'image' })
+      } catch (destroyError) {
+        console.error('[verification upload] cloudinary destroy failed', destroyError)
+      }
+
+      const { error: deleteExistingError } = await admin
+        .from('advisor_verification_uploads')
+        .delete()
+        .eq('id', existing.id)
+
+      if (deleteExistingError) {
+        return NextResponse.json({ error: deleteExistingError.message }, { status: 500 })
+      }
     }
 
     const { data: uploadRow, error: uploadError } = await admin

@@ -3,6 +3,10 @@ import { cookies } from 'next/headers'
 import { ADMIN_SESSION_COOKIE, verifyAdminSession } from '@/lib/admin-auth'
 import { createAdminClient } from '@/lib/supabase/server'
 
+function isMissingReviewedAtColumn(message?: string) {
+  return Boolean(message?.includes('column advisors.verification_reviewed_at does not exist'))
+}
+
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ advisorId: string }> }
@@ -21,25 +25,39 @@ export async function PATCH(
     }
 
     const admin = createAdminClient()
+    const reviewedAt = new Date().toISOString()
     const patch =
       body.action === 'confirm'
         ? {
             status: 'active',
             is_verified: true,
             verification_status: 'approved',
+            verification_reviewed_at: reviewedAt,
             verification_note: body.note?.trim() || 'Verification confirmed by LvvD team.',
           }
         : {
             status: 'pending',
             is_verified: false,
             verification_status: 'rejected',
+            verification_reviewed_at: reviewedAt,
             verification_note: body.note?.trim() || 'Verification refused by LvvD team.',
           }
 
-    const { error } = await admin
+    let { error } = await admin
       .from('advisors')
       .update(patch)
       .eq('id', advisorId)
+
+    if (error && isMissingReviewedAtColumn(error.message)) {
+      const fallbackPatch = { ...patch }
+      delete fallbackPatch.verification_reviewed_at
+      error = (
+        await admin
+          .from('advisors')
+          .update(fallbackPatch)
+          .eq('id', advisorId)
+      ).error
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

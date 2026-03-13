@@ -132,6 +132,7 @@ type VerificationSummary = {
   is_verified: boolean
   verification_status: 'not_submitted' | 'submitted' | 'approved' | 'rejected'
   verification_submitted_at: string | null
+  verification_reviewed_at: string | null
   verification_note: string | null
   uploads: VerificationUpload[]
 }
@@ -231,6 +232,21 @@ export default function DashboardPage() {
   const [verificationUploading, setVerificationUploading] = useState<string | null>(null)
   const [verificationSubmitting, setVerificationSubmitting] = useState(false)
   const [verificationMsg, setVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const confirmationVisibleUntil =
+    verification?.verification_status === 'approved' && verification.verification_reviewed_at
+      ? new Date(verification.verification_reviewed_at).getTime() + 24 * 60 * 60 * 1000
+      : null
+  const showConfirmedVerificationMessage = Boolean(
+    confirmationVisibleUntil && confirmationVisibleUntil > Date.now()
+  )
+  const canManageVerificationUploads =
+    verification?.verification_status === 'not_submitted' ||
+    verification?.verification_status === 'rejected'
+  const isVerificationPending = verification?.verification_status === 'submitted'
+  const showVerificationCard =
+    verificationLoading ||
+    verification?.verification_status !== 'approved' ||
+    showConfirmedVerificationMessage
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', advisor_category: 'woman', city: '', region: '', age: null, gender: 'female',
@@ -663,6 +679,7 @@ export default function DashboardPage() {
                 <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Here is a summary of your activity</p>
               </div>
 
+              {showVerificationCard && (
               <div className="rounded-xl p-6 space-y-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="space-y-2">
@@ -682,9 +699,11 @@ export default function DashboardPage() {
                     </h2>
                     <p className="text-sm max-w-2xl" style={{ color: '#d1d5db' }}>
                       {verification?.verification_status === 'approved'
-                        ? 'Your verification has been approved by the LvvD team and your profile can stay public.'
+                        ? 'Your verification has been approved by the LvvD team and this confirmation will stay visible for 24 hours.'
                         : verification?.verification_status === 'rejected'
                         ? 'Your verification was refused by the LvvD team. Review the note below, update your selfies and submit again.'
+                        : verification?.verification_status === 'submitted'
+                        ? 'Your verification is pending. The LvvD team is reviewing your private selfies before activating your profile.'
                         : 'Upload one unfiltered frontal selfie with your chest to top of head visible, plus one selfie holding a local receipt or newspaper with a clearly visible date.'}
                     </p>
                   </div>
@@ -713,70 +732,103 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-4">
-                  {([
-                    {
-                      kind: 'front_selfie',
-                      title: 'Front selfie',
-                      description: 'Good light, no filters, frontal pose, chest to top of head clearly visible.',
-                    },
-                    {
-                      kind: 'proof_selfie',
-                      title: 'Receipt or newspaper selfie',
-                      description: 'Hold a local receipt or newspaper so the place/date is readable in the photo.',
-                    },
-                  ] as const).map((item) => {
-                    const upload = verification?.uploads.find((entry) => entry.kind === item.kind)
-                    return (
-                      <div key={item.kind} className="rounded-xl p-4 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <div className="space-y-1">
-                          <h3 className="font-semibold text-white">{item.title}</h3>
-                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
-                        </div>
+                {canManageVerificationUploads && (
+                  <>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {([
+                        {
+                          kind: 'front_selfie',
+                          title: 'Front selfie',
+                          description: 'Good light, no filters, frontal pose, chest to top of head clearly visible.',
+                        },
+                        {
+                          kind: 'proof_selfie',
+                          title: 'Receipt or newspaper selfie',
+                          description: 'Hold a local receipt or newspaper so the place/date is readable in the photo.',
+                        },
+                      ] as const).map((item) => {
+                        const uploaded = verification?.uploads.some((entry) => entry.kind === item.kind)
+                        const canReplace = verification?.verification_status === 'rejected'
+                        const locked = verification?.verification_status === 'submitted' || (uploaded && !canReplace)
+                        return (
+                          <div key={item.kind} className="rounded-xl p-4 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-white">{item.title}</h3>
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em]"
+                                  style={{
+                                    background: uploaded ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
+                                    border: `1px solid ${uploaded ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                                    color: uploaded ? '#86efac' : '#d1d5db',
+                                  }}
+                                >
+                                  {uploaded ? 'Uploaded' : 'Missing'}
+                                </span>
+                              </div>
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                Uploaded verification photos stay private and are visible only to the LvvD admin team.
+                              </p>
+                            </div>
 
-                        {upload ? (
-                          <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
-                            <img src={upload.url} alt={item.title} className="w-full h-56 object-cover" />
+                            {!locked ? (
+                              <label className="btn-outline text-sm px-4 py-2 cursor-pointer inline-flex">
+                                {verificationUploading === item.kind
+                                  ? 'Uploading...'
+                                  : uploaded && canReplace
+                                  ? 'Upload new photo'
+                                  : 'Upload photo'}
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  disabled={verificationUploading !== null}
+                                  onChange={(e) => {
+                                    handleVerificationUpload(item.kind, e.target.files?.[0] ?? null)
+                                    e.currentTarget.value = ''
+                                  }}
+                                />
+                              </label>
+                            ) : (
+                              <p className="text-xs font-medium" style={{ color: locked ? '#d1d5db' : 'var(--text-muted)' }}>
+                                {verification?.verification_status === 'submitted'
+                                  ? 'Locked while the team reviews your verification.'
+                                  : uploaded && canReplace
+                                  ? 'You can replace this file because the previous verification was refused.'
+                                  : uploaded
+                                  ? 'Already uploaded. This file cannot be changed from your dashboard.'
+                                  : 'Waiting for upload.'}
+                              </p>
+                            )}
                           </div>
-                        ) : (
-                          <div className="rounded-xl h-56 flex items-center justify-center text-sm text-center px-6"
-                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
-                            No verification photo uploaded yet.
-                          </div>
-                        )}
+                        )
+                      })}
+                    </div>
 
-                        <label className="btn-outline text-sm px-4 py-2 cursor-pointer inline-flex">
-                          {verificationUploading === item.kind ? 'Uploading...' : upload ? 'Replace photo' : 'Upload photo'}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            className="hidden"
-                            disabled={verificationUploading !== null}
-                            onChange={(e) => {
-                              handleVerificationUpload(item.kind, e.target.files?.[0] ?? null)
-                              e.currentTarget.value = ''
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )
-                  })}
-                </div>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSubmitVerification}
+                        disabled={verificationSubmitting || verificationLoading || !verification?.uploads.some((item) => item.kind === 'front_selfie') || !verification?.uploads.some((item) => item.kind === 'proof_selfie')}
+                        className="btn-accent px-6 py-2.5 text-sm disabled:opacity-60"
+                      >
+                        {verificationSubmitting ? 'Submitting...' : verification?.verification_status === 'rejected' ? 'Submit verification again' : 'Submit verification'}
+                      </button>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Your profile stays hidden until the LvvD team approves the verification.
+                      </p>
+                    </div>
+                  </>
+                )}
 
-                <div className="flex items-center gap-4 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={handleSubmitVerification}
-                    disabled={verificationSubmitting || verificationLoading || !verification?.uploads.some((item) => item.kind === 'front_selfie') || !verification?.uploads.some((item) => item.kind === 'proof_selfie')}
-                    className="btn-accent px-6 py-2.5 text-sm disabled:opacity-60"
-                  >
-                    {verificationSubmitting ? 'Submitting...' : verification?.verification_status === 'submitted' ? 'Submitted to LvvD team' : 'Submit verification'}
-                  </button>
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Your profile stays hidden until the LvvD team approves the verification.
-                  </p>
-                </div>
+                {isVerificationPending && (
+                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.28)', color: '#bfdbfe' }}>
+                    Your verification request is in the LvvD review queue. The private photos are now visible only to the admin team.
+                  </div>
+                )}
               </div>
+              )}
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[

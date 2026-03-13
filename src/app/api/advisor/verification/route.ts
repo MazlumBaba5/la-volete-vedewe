@@ -4,6 +4,10 @@ import { sendVerificationNotificationEmail } from '@/lib/email'
 
 type VerificationKind = 'front_selfie' | 'proof_selfie'
 
+function isMissingReviewedAtColumn(message?: string) {
+  return Boolean(message?.includes('column advisors.verification_reviewed_at does not exist'))
+}
+
 function isMissingVerificationSchema(message?: string) {
   return Boolean(
     message?.includes('column advisors.verification_status does not exist') ||
@@ -18,11 +22,24 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const admin = createAdminClient()
-    const { data: advisor, error: advisorError } = await admin
+    let { data: advisor, error: advisorError } = await admin
       .from('advisors')
-      .select('id, status, is_verified, verification_status, verification_submitted_at, verification_note')
+      .select('id, status, is_verified, verification_status, verification_submitted_at, verification_reviewed_at, verification_note')
       .eq('profile_id', user.id)
       .single()
+
+    if (advisorError && isMissingReviewedAtColumn(advisorError.message)) {
+      const fallbackResult = await admin
+        .from('advisors')
+        .select('id, status, is_verified, verification_status, verification_submitted_at, verification_note')
+        .eq('profile_id', user.id)
+        .single()
+
+      advisor = fallbackResult.data
+        ? { ...fallbackResult.data, verification_reviewed_at: null }
+        : null
+      advisorError = fallbackResult.error
+    }
 
     if (advisorError && !isMissingVerificationSchema(advisorError.message)) {
       return NextResponse.json({ error: advisorError.message }, { status: 500 })
@@ -42,6 +59,7 @@ export async function GET() {
         is_verified: legacyAdvisor.is_verified,
         verification_status: 'not_submitted',
         verification_submitted_at: null,
+        verification_reviewed_at: null,
         verification_note: 'Run advisor_verification_setup.sql to enable the verification workflow.',
         uploads: [],
         schema_ready: false,
@@ -63,6 +81,7 @@ export async function GET() {
       is_verified: advisor.is_verified,
       verification_status: advisor.verification_status ?? 'not_submitted',
       verification_submitted_at: advisor.verification_submitted_at,
+      verification_reviewed_at: advisor.verification_reviewed_at,
       verification_note: advisor.verification_note,
       uploads: uploads ?? [],
       schema_ready: true,
@@ -109,14 +128,28 @@ export async function POST() {
     }
 
     const submittedAt = new Date().toISOString()
-    const { error: updateError } = await admin
+    let { error: updateError } = await admin
       .from('advisors')
       .update({
         status: 'pending',
         verification_status: 'submitted',
         verification_submitted_at: submittedAt,
+        verification_reviewed_at: null,
       })
       .eq('id', advisor.id)
+
+    if (updateError && isMissingReviewedAtColumn(updateError.message)) {
+      updateError = (
+        await admin
+          .from('advisors')
+          .update({
+            status: 'pending',
+            verification_status: 'submitted',
+            verification_submitted_at: submittedAt,
+          })
+          .eq('id', advisor.id)
+      ).error
+    }
 
     if (updateError) {
       if (isMissingVerificationSchema(updateError.message)) {
