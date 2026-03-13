@@ -79,6 +79,26 @@ CREATE TABLE public.cities (
   region text,
   CONSTRAINT cities_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.client_memberships (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  profile_id uuid NOT NULL,
+  plan text NOT NULL DEFAULT 'gold'::text,
+  status text NOT NULL DEFAULT 'inactive'::text,
+  stripe_customer_id text,
+  stripe_subscription_id text UNIQUE,
+  stripe_price_id text,
+  current_period_start timestamp with time zone,
+  current_period_end timestamp with time zone,
+  cancel_at_period_end boolean NOT NULL DEFAULT false,
+  cancelled_at timestamp with time zone,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT client_memberships_pkey PRIMARY KEY (id),
+  CONSTRAINT client_memberships_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT client_memberships_plan_check CHECK (plan = 'gold'::text),
+  CONSTRAINT client_memberships_status_check CHECK (status = ANY (ARRAY['active'::text, 'canceled'::text, 'expired'::text, 'inactive'::text]))
+);
 CREATE TABLE public.dutch_cities (
   name text NOT NULL,
   region text NOT NULL,

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { getStripeClient } from '@/lib/stripe/client'
 import {
+  activateClientMembershipFromCheckoutSession,
   activateSubscriptionFromCheckoutSession,
   creditWalletFromCheckoutSession,
+  syncClientMembershipFromStripe,
   syncSubscriptionFromStripe,
 } from '@/services/billing.service'
 
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     switch (event.type) {
       case 'checkout.session.completed':
+        await activateClientMembershipFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
         await activateSubscriptionFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
         await creditWalletFromCheckoutSession(event.data.object as Stripe.Checkout.Session)
         break
@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
         await syncSubscriptionFromStripe(event.data.object as Stripe.Subscription)
+        await syncClientMembershipFromStripe(event.data.object as Stripe.Subscription)
         break
 
       default:

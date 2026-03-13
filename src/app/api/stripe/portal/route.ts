@@ -19,6 +19,12 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient()
+    const role = user.user_metadata?.role as string | undefined
+
+    if (role === 'guest') {
+      return NextResponse.json({ error: 'Gold renewals are handled as one-time 30-day checkouts from the client dashboard' }, { status: 400 })
+    }
+
     const { data: advisor, error: advisorError } = await admin
       .from('advisors')
       .select('id')

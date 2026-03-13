@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getStripeClient } from '@/lib/stripe/client'
-import { getCreditPack, getSubscriptionPlan } from '@/lib/stripe/catalog'
+import { getClientMembershipPlan, getCreditPack, getSubscriptionPlan } from '@/lib/stripe/catalog'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
@@ -42,6 +42,24 @@ async function getStripeCustomerId(advisorId: string) {
   return data?.stripe_customer_id as string | undefined
 }
 
+async function getGuestStripeCustomerId(profileId: string) {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('client_memberships')
+    .select('stripe_customer_id')
+    .eq('profile_id', profileId)
+    .not('stripe_customer_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data?.stripe_customer_id as string | undefined
+}
+
 export async function POST(request: NextRequest) {
   try {
     const stripe = getStripeClient()
@@ -53,12 +71,42 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json() as {
-      kind?: 'subscription' | 'credits'
+      kind?: 'subscription' | 'credits' | 'client_membership'
       plan?: string
     }
 
     if (!body.kind || !body.plan) {
       return NextResponse.json({ error: 'Missing checkout payload' }, { status: 400 })
+    }
+
+    const role = user.user_metadata?.role as string | undefined
+    const baseUrl = getBaseUrl(request)
+
+    if (body.kind === 'client_membership') {
+      if (role !== 'guest') {
+        return NextResponse.json({ error: 'Only registered client accounts can buy Gold' }, { status: 403 })
+      }
+
+      const plan = getClientMembershipPlan(body.plan)
+      const customerId = await getGuestStripeCustomerId(user.id)
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{ price: plan.priceId, quantity: 1 }],
+        success_url: `${baseUrl}/guest/dashboard?billing=success`,
+        cancel_url: `${baseUrl}/guest/dashboard?billing=cancel`,
+        allow_promotion_codes: true,
+        client_reference_id: user.id,
+        customer: customerId,
+        customer_email: customerId ? undefined : user.email ?? undefined,
+        metadata: {
+          kind: 'client_membership',
+          profile_id: user.id,
+          plan: plan.key,
+          price_id: plan.priceId,
+        },
+      })
+
+      return NextResponse.json({ url: session.url })
     }
 
     const advisorId = await getAdvisorForUser(user.id)
@@ -67,7 +115,6 @@ export async function POST(request: NextRequest) {
     }
 
     const customerId = await getStripeCustomerId(advisorId)
-    const baseUrl = getBaseUrl(request)
     const successUrl = `${baseUrl}/advisor/dashboard?tab=subscription&billing=success`
     const cancelUrl = `${baseUrl}/advisor/dashboard?tab=subscription&billing=cancel`
 
