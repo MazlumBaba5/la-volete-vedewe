@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import { canOpenChatWithAdvisor } from '@/lib/chat'
+import { isMissingTableError } from '@/app/api/chat/_helpers'
 
 export async function POST(req: Request) {
   try {
@@ -45,6 +46,20 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ error: 'Use the advisor dashboard inbox to answer client conversations.' }, { status: 400 })
+    }
+
+    const { data: block, error: blockError } = await admin
+      .from('chat_blocks')
+      .select('id')
+      .eq('advisor_id', body.advisorId)
+      .eq('guest_profile_id', guestProfileId)
+      .maybeSingle()
+
+    if (blockError && !isMissingTableError(blockError, 'public.chat_blocks') && !isMissingTableError(blockError, 'chat_blocks')) {
+      throw blockError
+    }
+    if (block?.id) {
+      return NextResponse.json({ error: 'You cannot start this chat because one participant blocked the conversation.' }, { status: 403 })
     }
 
     const { data: existing, error: lookupError } = await admin

@@ -74,7 +74,7 @@ export default function HeroSection({ cities = [], featuredProfiles = [] }: Prop
             </h2>
 
             <p className="mt-4 text-gray-400 text-lg max-w-xl">
-              Thousands of verified profiles across the Netherlands. Discretion and safety guaranteed.
+              Lot of verified profiles across the Netherlands 🇳🇱. Discretion and safety guaranteed.
             </p>
 
             {/* Search box (unchanged style) */}

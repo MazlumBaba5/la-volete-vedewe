@@ -1,51 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAdminClient, createClient } from '@/lib/supabase/server'
-
-async function getActor() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { user: null, role: null }
-  }
-
-  const role = user.user_metadata?.role as 'guest' | 'advisor' | undefined
-  return { user, role: role ?? null }
-}
-
-async function validateConversationAccess(conversationId: string, userId: string, role: 'guest' | 'advisor') {
-  const admin = createAdminClient()
-  const { data: conversation, error } = await admin
-    .from('chat_conversations')
-    .select('id, advisor_id, guest_profile_id')
-    .eq('id', conversationId)
-    .maybeSingle()
-
-  if (error) {
-    throw error
-  }
-
-  if (!conversation) {
-    return { admin, conversation: null }
-  }
-
-  if (role === 'guest' && conversation.guest_profile_id !== userId) {
-    return { admin, conversation: null }
-  }
-
-  if (role === 'advisor') {
-    const { data: advisor } = await admin
-      .from('advisors')
-      .select('id')
-      .eq('profile_id', userId)
-      .maybeSingle()
-
-    if (!advisor?.id || advisor.id !== conversation.advisor_id) {
-      return { admin, conversation: null }
-    }
-  }
-
-  return { admin, conversation }
-}
+import { getActor, getConversationBlockState, validateConversationAccess } from '@/app/api/chat/_helpers'
 
 export async function GET(
   _req: Request,
@@ -81,13 +35,26 @@ export async function GET(
       .eq('sender_role', unreadSenderRole)
       .is('read_at', null)
 
+    const blockState = await getConversationBlockState(conversation, user.id)
+
     return NextResponse.json({
       conversationId,
       messages: messages ?? [],
+      block: {
+        isBlocked: blockState.isBlocked,
+        blockedByRole: blockState.block?.blocked_by_role ?? null,
+        blockedByMe: blockState.blockedByMe,
+      },
     })
   } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error
+        ? String((error as { message?: unknown }).message ?? 'Unable to load chat messages')
+        : 'Unable to load chat messages'
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to load chat messages' },
+      { error: errorMessage },
       { status: 500 }
     )
   }
@@ -113,6 +80,11 @@ export async function POST(
     const { admin, conversation } = await validateConversationAccess(conversationId, user.id, role)
     if (!conversation) {
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
+    }
+
+    const blockState = await getConversationBlockState(conversation, user.id)
+    if (blockState.isBlocked) {
+      return NextResponse.json({ error: 'This conversation is blocked.' }, { status: 403 })
     }
 
     const { data: message, error } = await admin

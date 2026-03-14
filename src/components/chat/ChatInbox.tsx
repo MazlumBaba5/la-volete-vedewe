@@ -27,11 +27,23 @@ type ChatMessage = {
   optimistic?: boolean
 }
 
+type BlockState = {
+  isBlocked: boolean
+  blockedByRole: 'guest' | 'advisor' | null
+  blockedByMe: boolean
+}
+
 type ConversationsResponse = {
   schema_ready?: boolean
   chatOpenForTesting?: boolean
   message?: string
   items: ChatConversation[]
+}
+
+type MessagesResponse = {
+  conversationId: string
+  messages: ChatMessage[]
+  block?: BlockState
 }
 
 export default function ChatInbox({
@@ -56,7 +68,10 @@ export default function ChatInbox({
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messagesError, setMessagesError] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [blockState, setBlockState] = useState<BlockState>({ isBlocked: false, blockedByRole: null, blockedByMe: false })
   const [sending, setSending] = useState(false)
+  const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | null>(null)
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -209,7 +224,9 @@ export default function ChatInbox({
       if (!res.ok) {
         throw new Error(json.error ?? 'Unable to load messages')
       }
-      const nextMessages = (json.messages as ChatMessage[]) ?? []
+      const response = json as MessagesResponse
+      const nextMessages = (response.messages as ChatMessage[]) ?? []
+      setBlockState(response.block ?? { isBlocked: false, blockedByRole: null, blockedByMe: false })
       messagesCacheRef.current[conversationId] = nextMessages
       setMessages(nextMessages)
     } catch (error) {
@@ -232,6 +249,7 @@ export default function ChatInbox({
   useEffect(() => {
     if (!selectedConversationId) {
       setMessages([])
+      setBlockState({ isBlocked: false, blockedByRole: null, blockedByMe: false })
       return
     }
 
@@ -276,6 +294,10 @@ export default function ChatInbox({
             void loadMessages(selectedId)
             void loadConversations({ background: true })
           })
+          .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${selectedId}` }, () => {
+            void loadMessages(selectedId)
+            void loadConversations({ background: true })
+          })
           .subscribe()
       : null
 
@@ -288,7 +310,7 @@ export default function ChatInbox({
   }, [loadConversations, loadMessages, role, selectedConversationId])
 
   async function sendCurrentMessage() {
-    if (!selectedConversationId || !message.trim()) return
+    if (!selectedConversationId || !message.trim() || blockState.isBlocked) return
 
     setSending(true)
     setMessagesError('')
@@ -354,6 +376,87 @@ export default function ChatInbox({
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
     await sendCurrentMessage()
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    if (!selectedConversationId) return
+    setDeletingMessageId(messageId)
+    setMessagesError('')
+    try {
+      const res = await fetch(`/api/chat/${selectedConversationId}/messages/${messageId}`, {
+        method: 'DELETE',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to delete message')
+      }
+      await loadMessages(selectedConversationId)
+      await loadConversations({ background: true })
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to delete message')
+    } finally {
+      setDeletingMessageId(null)
+    }
+  }
+
+  async function handleDeleteConversation() {
+    if (!selectedConversationId) return
+    const confirmed = window.confirm('Delete this conversation? This action cannot be undone.')
+    if (!confirmed) return
+
+    setActionBusy('deleteConversation')
+    setMessagesError('')
+    const conversationId = selectedConversationId
+    try {
+      const res = await fetch(`/api/chat/${conversationId}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to delete conversation')
+      }
+
+      let nextSelectedId: string | null = null
+      setConversations((current) => {
+        const remaining = current.filter((conversation) => conversation.id !== conversationId)
+        nextSelectedId = remaining[0]?.id ?? null
+        return remaining
+      })
+      setSelectedConversationId((current) => (current === conversationId ? nextSelectedId : current))
+      setMessages([])
+      setBlockState({ isBlocked: false, blockedByRole: null, blockedByMe: false })
+      await loadConversations({ background: true })
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to delete conversation')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  async function handleToggleBlock() {
+    if (!selectedConversationId) return
+    const nextAction = blockState.blockedByMe ? 'unblock' : 'block'
+    const confirmText = blockState.blockedByMe
+      ? 'Unblock this user and allow messages again?'
+      : 'Block this user? Messages will be disabled until you unblock.'
+    const confirmed = window.confirm(confirmText)
+    if (!confirmed) return
+
+    setActionBusy(nextAction)
+    setMessagesError('')
+    try {
+      const res = await fetch(`/api/chat/${selectedConversationId}/block`, {
+        method: blockState.blockedByMe ? 'DELETE' : 'POST',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to update block status')
+      }
+      await loadMessages(selectedConversationId)
+      await loadConversations({ background: true })
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to update block status')
+    } finally {
+      setActionBusy(null)
+    }
   }
 
   const selectedConversation = conversations.find((item) => item.id === selectedConversationId) ?? null
@@ -493,12 +596,49 @@ export default function ChatInbox({
               )}
               </div>
             </div>
-            {selectedConversation && (
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {selectedConversation.unreadCount > 0 ? `${selectedConversation.unreadCount} unread` : 'Up to date'}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedConversation && (
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {selectedConversation.unreadCount > 0 ? `${selectedConversation.unreadCount} unread` : 'Up to date'}
+                </span>
+              )}
+              {selectedConversation && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleBlock()}
+                    disabled={actionBusy !== null}
+                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                  >
+                    {actionBusy === 'block'
+                      ? 'Blocking...'
+                      : actionBusy === 'unblock'
+                      ? 'Unblocking...'
+                      : blockState.blockedByMe
+                      ? 'Unblock user'
+                      : 'Block user'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConversation()}
+                    disabled={actionBusy !== null}
+                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                    style={{ color: '#fca5a5' }}
+                  >
+                    {actionBusy === 'deleteConversation' ? 'Deleting...' : 'Delete chat'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
+
+          {selectedConversation && blockState.isBlocked && (
+            <div className="px-5 py-3 text-xs" style={{ background: 'rgba(245,158,11,0.1)', color: '#fde68a', borderBottom: '1px solid rgba(245,158,11,0.28)' }}>
+              {blockState.blockedByMe
+                ? 'You blocked this user. Unblock to send messages again.'
+                : 'This conversation is blocked by the other user.'}
+            </div>
+          )}
 
           <div
             ref={messagesContainerRef}
@@ -527,7 +667,20 @@ export default function ChatInbox({
                           {formatMessageTime(entry.created_at)}
                         </p>
                         {mine && (
-                          <DeliveryIndicator optimistic={entry.optimistic} readAt={entry.read_at} />
+                          <div className="flex items-center gap-2">
+                            <DeliveryIndicator optimistic={entry.optimistic} readAt={entry.read_at} />
+                            {!entry.optimistic && (
+                              <button
+                                type="button"
+                                disabled={deletingMessageId === entry.id}
+                                onClick={() => void handleDeleteMessage(entry.id)}
+                                className="text-[11px] hover:text-white disabled:opacity-60"
+                                style={{ color: '#fca5a5' }}
+                              >
+                                {deletingMessageId === entry.id ? 'Deleting...' : 'Delete'}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -561,11 +714,11 @@ export default function ChatInbox({
                 }
               }}
               placeholder={selectedConversation ? 'Write your message...' : 'Select a conversation first'}
-              disabled={!selectedConversation || sending}
+              disabled={!selectedConversation || sending || blockState.isBlocked}
               className="input-dark resize-none min-h-[118px]"
             />
             <div className="flex items-center justify-end gap-3">
-              <button type="submit" disabled={!selectedConversation || sending || !message.trim()} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
+              <button type="submit" disabled={!selectedConversation || sending || !message.trim() || blockState.isBlocked} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
                 {sending ? 'Sending...' : 'Send'}
               </button>
             </div>
