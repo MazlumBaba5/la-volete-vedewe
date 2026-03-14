@@ -70,8 +70,9 @@ export default function ChatInbox({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [blockState, setBlockState] = useState<BlockState>({ isBlocked: false, blockedByRole: null, blockedByMe: false })
   const [sending, setSending] = useState(false)
-  const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | null>(null)
-  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null)
+  const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | 'bulkDelete' | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -250,6 +251,8 @@ export default function ChatInbox({
     if (!selectedConversationId) {
       setMessages([])
       setBlockState({ isBlocked: false, blockedByRole: null, blockedByMe: false })
+      setSelectionMode(false)
+      setSelectedMessageIds([])
       return
     }
 
@@ -260,6 +263,11 @@ export default function ChatInbox({
     if (selectedConversationId) {
       composerRef.current?.focus()
     }
+  }, [selectedConversationId])
+
+  useEffect(() => {
+    setSelectionMode(false)
+    setSelectedMessageIds([])
   }, [selectedConversationId])
 
   useEffect(() => {
@@ -378,27 +386,6 @@ export default function ChatInbox({
     await sendCurrentMessage()
   }
 
-  async function handleDeleteMessage(messageId: string) {
-    if (!selectedConversationId) return
-    setDeletingMessageId(messageId)
-    setMessagesError('')
-    try {
-      const res = await fetch(`/api/chat/${selectedConversationId}/messages/${messageId}`, {
-        method: 'DELETE',
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        throw new Error(json.error ?? 'Unable to delete message')
-      }
-      await loadMessages(selectedConversationId)
-      await loadConversations({ background: true })
-    } catch (error) {
-      setMessagesError(error instanceof Error ? error.message : 'Unable to delete message')
-    } finally {
-      setDeletingMessageId(null)
-    }
-  }
-
   async function handleDeleteConversation() {
     if (!selectedConversationId) return
     const confirmed = window.confirm('Delete this conversation? This action cannot be undone.')
@@ -423,6 +410,8 @@ export default function ChatInbox({
       setSelectedConversationId((current) => (current === conversationId ? nextSelectedId : current))
       setMessages([])
       setBlockState({ isBlocked: false, blockedByRole: null, blockedByMe: false })
+      setSelectionMode(false)
+      setSelectedMessageIds([])
       await loadConversations({ background: true })
     } catch (error) {
       setMessagesError(error instanceof Error ? error.message : 'Unable to delete conversation')
@@ -454,6 +443,50 @@ export default function ChatInbox({
       await loadConversations({ background: true })
     } catch (error) {
       setMessagesError(error instanceof Error ? error.message : 'Unable to update block status')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  function toggleSelectMessage(messageId: string) {
+    setSelectedMessageIds((current) =>
+      current.includes(messageId) ? current.filter((id) => id !== messageId) : [...current, messageId]
+    )
+  }
+
+  function handleToggleSelectionMode() {
+    setSelectionMode((current) => {
+      const next = !current
+      if (!next) {
+        setSelectedMessageIds([])
+      }
+      return next
+    })
+  }
+
+  async function handleConfirmBulkDelete() {
+    if (!selectedConversationId || selectedMessageIds.length === 0) return
+    const confirmed = window.confirm(`Delete ${selectedMessageIds.length} selected message(s)?`)
+    if (!confirmed) return
+
+    setActionBusy('bulkDelete')
+    setMessagesError('')
+    try {
+      const res = await fetch(`/api/chat/${selectedConversationId}/messages/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageIds: selectedMessageIds }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to delete selected messages')
+      }
+      setSelectionMode(false)
+      setSelectedMessageIds([])
+      await loadMessages(selectedConversationId)
+      await loadConversations({ background: true })
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to delete selected messages')
     } finally {
       setActionBusy(null)
     }
@@ -499,9 +532,197 @@ export default function ChatInbox({
           boxShadow: '0 20px 45px rgba(0,0,0,0.32)',
         }}
       >
-        <div className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:h-[78vh] lg:max-h-[920px]">
+        <div className="grid grid-cols-1 gap-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:h-[86vh] lg:max-h-[1000px]">
+
+        <div
+          className="flex flex-col h-[68dvh] min-h-[460px] max-h-[760px] sm:h-[72dvh] sm:min-h-[560px] sm:max-h-[840px] lg:h-full lg:min-h-0 lg:max-h-none lg:col-start-2 lg:row-start-1"
+          style={{ background: 'linear-gradient(180deg, rgba(23,23,33,0.92), rgba(12,12,18,0.94))' }}
+        >
+          <div className="px-4 sm:px-5 py-4 border-b flex items-center justify-between gap-3 sm:gap-4 flex-wrap" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-3">
+              {selectedConversation && (
+                <Avatar
+                  name={selectedConversation.counterpartName}
+                  url={selectedConversation.counterpartAvatarUrl}
+                  role={selectedConversation.counterpartRole}
+                />
+              )}
+              <div>
+              <p className="font-semibold text-white">
+                {selectedConversation ? selectedConversation.counterpartName : 'Select a conversation'}
+              </p>
+              {selectedConversation?.counterpartRole === 'advisor' && selectedConversation.counterpartSlug && (
+                <Link href={`/profile/${selectedConversation.counterpartSlug}`} className="text-xs" style={{ color: '#f9a8d4' }}>
+                  View public profile
+                </Link>
+              )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedConversation && (
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {selectedConversation.unreadCount > 0 ? `${selectedConversation.unreadCount} unread` : 'Up to date'}
+                </span>
+              )}
+              {selectedConversation && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectionMode}
+                    disabled={actionBusy !== null}
+                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                  >
+                    {selectionMode ? 'Cancel select' : 'Delete messages'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleBlock()}
+                    disabled={actionBusy !== null}
+                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                  >
+                    {actionBusy === 'block'
+                      ? 'Blocking...'
+                      : actionBusy === 'unblock'
+                      ? 'Unblocking...'
+                      : blockState.blockedByMe
+                      ? 'Unblock user'
+                      : 'Block user'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteConversation()}
+                    disabled={actionBusy !== null}
+                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                    style={{ color: '#fca5a5' }}
+                  >
+                    {actionBusy === 'deleteConversation' ? 'Deleting...' : 'Delete chat'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {selectedConversation && blockState.isBlocked && (
+            <div className="px-5 py-3 text-xs" style={{ background: 'rgba(245,158,11,0.1)', color: '#fde68a', borderBottom: '1px solid rgba(245,158,11,0.28)' }}>
+              {blockState.blockedByMe
+                ? 'You blocked this user. Unblock to send messages again.'
+                : 'This conversation is blocked by the other user.'}
+            </div>
+          )}
+          {selectedConversation && selectionMode && (
+            <div className="px-5 py-3 flex items-center justify-between gap-3" style={{ background: 'rgba(59,130,246,0.08)', borderBottom: '1px solid rgba(59,130,246,0.25)' }}>
+              <p className="text-xs" style={{ color: '#bfdbfe' }}>
+                {selectedMessageIds.length > 0
+                  ? `${selectedMessageIds.length} message(s) selected`
+                  : 'Select one or more of your messages'}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleToggleSelectionMode}
+                  className="btn-ghost px-3 py-1.5 text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmBulkDelete()}
+                  disabled={selectedMessageIds.length === 0 || actionBusy === 'bulkDelete'}
+                  className="btn-accent px-3 py-1.5 text-xs disabled:opacity-60"
+                >
+                  {actionBusy === 'bulkDelete' ? 'Deleting...' : 'Confirm delete'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div
-            className="flex flex-col min-h-[300px] lg:min-h-0 lg:border-r"
+            ref={messagesContainerRef}
+            className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-5 py-4 sm:py-5 space-y-3"
+            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))' }}
+          >
+            {!selectedConversation ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Select a conversation to read and send messages.</p>
+            ) : messagesLoading ? (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading messages...</p>
+            ) : messages.length > 0 ? (
+              messages.map((entry) => {
+                const mine = entry.sender_role === role
+                const selectable = mine && !entry.optimistic
+                const selected = selectedMessageIds.includes(entry.id)
+                return (
+                  <div key={entry.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                    {selectionMode && mine && (
+                      <button
+                        type="button"
+                        disabled={!selectable}
+                        onClick={() => toggleSelectMessage(entry.id)}
+                        className="mr-2 mt-3 h-5 w-5 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                        style={{
+                          borderColor: selected ? '#f472b6' : 'rgba(255,255,255,0.35)',
+                          background: selected ? 'rgba(244,114,182,0.22)' : 'transparent',
+                        }}
+                        aria-label={selected ? 'Unselect message' : 'Select message'}
+                      />
+                    )}
+                    <div
+                      className="max-w-[85%] rounded-2xl px-4 py-3"
+                      style={{
+                        background: mine ? 'rgba(233,30,140,0.14)' : 'var(--bg-elevated)',
+                        border: `1px solid ${mine ? 'rgba(233,30,140,0.28)' : 'var(--border)'}`,
+                      }}
+                    >
+                      <p className="text-sm leading-relaxed text-white whitespace-pre-wrap">{entry.body}</p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                          {formatMessageTime(entry.created_at)}
+                        </p>
+                        {mine && <DeliveryIndicator optimistic={entry.optimistic} readAt={entry.read_at} />}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No messages yet. Start the conversation below.</p>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {messagesError && (
+            <div className="px-5 py-3 text-sm" style={{ color: '#fca5a5', borderTop: '1px solid var(--border)' }}>
+              {messagesError}
+            </div>
+          )}
+
+          <form onSubmit={handleSendMessage} className="px-4 sm:px-5 py-3 sm:py-4 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
+            <textarea
+              ref={composerRef}
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (!sending && selectedConversation && message.trim()) {
+                    void sendCurrentMessage()
+                  }
+                }
+              }}
+              placeholder={selectedConversation ? 'Write your message...' : 'Select a conversation first'}
+              disabled={!selectedConversation || sending || blockState.isBlocked}
+              className="input-dark resize-none min-h-[96px] sm:min-h-[118px]"
+            />
+            <div className="flex items-center justify-end gap-3">
+              <button type="submit" disabled={!selectedConversation || sending || !message.trim() || blockState.isBlocked} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
+                {sending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+          <div
+            className="flex flex-col min-h-[260px] sm:min-h-[300px] lg:min-h-0 lg:border-r lg:col-start-1 lg:row-start-1"
             style={{ background: 'rgba(14,14,18,0.82)', borderColor: 'var(--border)' }}
           >
           <div className="px-4 py-4 border-b space-y-3" style={{ borderColor: 'var(--border)' }}>
@@ -570,159 +791,6 @@ export default function ChatInbox({
               </div>
             )}
           </div>
-        </div>
-
-        <div
-          className="flex flex-col h-[72vh] min-h-[620px] max-h-[860px] lg:h-full lg:min-h-0 lg:max-h-none"
-          style={{ background: 'linear-gradient(180deg, rgba(23,23,33,0.92), rgba(12,12,18,0.94))' }}
-        >
-          <div className="px-5 py-4 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--border)' }}>
-            <div className="flex items-center gap-3">
-              {selectedConversation && (
-                <Avatar
-                  name={selectedConversation.counterpartName}
-                  url={selectedConversation.counterpartAvatarUrl}
-                  role={selectedConversation.counterpartRole}
-                />
-              )}
-              <div>
-              <p className="font-semibold text-white">
-                {selectedConversation ? selectedConversation.counterpartName : 'Select a conversation'}
-              </p>
-              {selectedConversation?.counterpartRole === 'advisor' && selectedConversation.counterpartSlug && (
-                <Link href={`/profile/${selectedConversation.counterpartSlug}`} className="text-xs" style={{ color: '#f9a8d4' }}>
-                  View public profile
-                </Link>
-              )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {selectedConversation && (
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {selectedConversation.unreadCount > 0 ? `${selectedConversation.unreadCount} unread` : 'Up to date'}
-                </span>
-              )}
-              {selectedConversation && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleBlock()}
-                    disabled={actionBusy !== null}
-                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
-                  >
-                    {actionBusy === 'block'
-                      ? 'Blocking...'
-                      : actionBusy === 'unblock'
-                      ? 'Unblocking...'
-                      : blockState.blockedByMe
-                      ? 'Unblock user'
-                      : 'Block user'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleDeleteConversation()}
-                    disabled={actionBusy !== null}
-                    className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
-                    style={{ color: '#fca5a5' }}
-                  >
-                    {actionBusy === 'deleteConversation' ? 'Deleting...' : 'Delete chat'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {selectedConversation && blockState.isBlocked && (
-            <div className="px-5 py-3 text-xs" style={{ background: 'rgba(245,158,11,0.1)', color: '#fde68a', borderBottom: '1px solid rgba(245,158,11,0.28)' }}>
-              {blockState.blockedByMe
-                ? 'You blocked this user. Unblock to send messages again.'
-                : 'This conversation is blocked by the other user.'}
-            </div>
-          )}
-
-          <div
-            ref={messagesContainerRef}
-            className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-3"
-            style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0))' }}
-          >
-            {!selectedConversation ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Select a conversation to read and send messages.</p>
-            ) : messagesLoading ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading messages...</p>
-            ) : messages.length > 0 ? (
-              messages.map((entry) => {
-                const mine = entry.sender_role === role
-                return (
-                  <div key={entry.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                    <div
-                      className="max-w-[85%] rounded-2xl px-4 py-3"
-                      style={{
-                        background: mine ? 'rgba(233,30,140,0.14)' : 'var(--bg-elevated)',
-                        border: `1px solid ${mine ? 'rgba(233,30,140,0.28)' : 'var(--border)'}`,
-                      }}
-                    >
-                      <p className="text-sm leading-relaxed text-white whitespace-pre-wrap">{entry.body}</p>
-                      <div className="mt-2 flex items-center justify-between gap-3">
-                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                          {formatMessageTime(entry.created_at)}
-                        </p>
-                        {mine && (
-                          <div className="flex items-center gap-2">
-                            <DeliveryIndicator optimistic={entry.optimistic} readAt={entry.read_at} />
-                            {!entry.optimistic && (
-                              <button
-                                type="button"
-                                disabled={deletingMessageId === entry.id}
-                                onClick={() => void handleDeleteMessage(entry.id)}
-                                className="text-[11px] hover:text-white disabled:opacity-60"
-                                style={{ color: '#fca5a5' }}
-                              >
-                                {deletingMessageId === entry.id ? 'Deleting...' : 'Delete'}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            ) : (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No messages yet. Start the conversation below.</p>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {messagesError && (
-            <div className="px-5 py-3 text-sm" style={{ color: '#fca5a5', borderTop: '1px solid var(--border)' }}>
-              {messagesError}
-            </div>
-          )}
-
-          <form onSubmit={handleSendMessage} className="px-5 py-4 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
-            <textarea
-              ref={composerRef}
-              rows={4}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  if (!sending && selectedConversation && message.trim()) {
-                    void sendCurrentMessage()
-                  }
-                }
-              }}
-              placeholder={selectedConversation ? 'Write your message...' : 'Select a conversation first'}
-              disabled={!selectedConversation || sending || blockState.isBlocked}
-              className="input-dark resize-none min-h-[118px]"
-            />
-            <div className="flex items-center justify-end gap-3">
-              <button type="submit" disabled={!selectedConversation || sending || !message.trim() || blockState.isBlocked} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
-                {sending ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          </form>
         </div>
       </div>
       </div>
