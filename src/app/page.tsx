@@ -5,41 +5,23 @@ import Footer from '@/components/layout/Footer'
 import HeroSection from '@/components/marketplace/HeroSection'
 import CategorySection from '@/components/marketplace/CategorySection'
 import ProfileCard from '@/components/marketplace/ProfileCard'
-import { getFeaturedProfiles, getRecentProfiles, getCities, getSiteStats } from '@/services/advisor.service'
+import { getFeaturedProfiles, getRecentProfiles, getCities } from '@/services/advisor.service'
 
 export const revalidate = 60
 
 export default async function Home() {
-  const [featured, recent, cities, stats] = await Promise.all([
+  const [featured, recent, cities] = await Promise.all([
     getFeaturedProfiles(),
     getRecentProfiles(),
     getCities(),
-    getSiteStats(),
   ])
 
   return (
     <>
       <Header />
       <main>
-        <HeroSection cities={cities} stats={stats} />
+        <HeroSection cities={cities} featuredProfiles={featured} />
         <CategorySection />
-
-        {/* Featured */}
-        <section className="px-4 lg:px-8 py-10" style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="section-title">Featured <span>profiles</span></h2>
-            <Link href="/listings?tier=diamond" className="text-sm font-medium transition-colors" style={{ color: 'var(--accent)' }}>
-              See all →
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {featured.map((p) => <ProfileCard key={p.id} profile={p} />)}
-          </div>
-        </section>
-
-        <div className="px-4 lg:px-8" style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <hr style={{ borderColor: 'var(--border)' }} />
-        </div>
 
         {/* Recent */}
         <section className="px-4 lg:px-8 py-10" style={{ maxWidth: 1400, margin: '0 auto' }}>

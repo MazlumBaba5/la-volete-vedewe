@@ -93,7 +93,7 @@ export default function Header() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Lvvd
+            L❤❤D
           </span>
         </Link>
 

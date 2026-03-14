@@ -690,7 +690,7 @@ export default function DashboardPage() {
         <Link href="/">
           <span className="text-xl font-black"
             style={{ background: 'linear-gradient(135deg, var(--accent), #ff6eb4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Lvvd
+            L❤❤D
           </span>
         </Link>
         <div className="flex items-center gap-3">
