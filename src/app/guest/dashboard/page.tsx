@@ -48,10 +48,19 @@ export default function GuestDashboardPage() {
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [accountMsg, setAccountMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [avatarBusy, setAvatarBusy] = useState<'upload' | 'remove' | null>(null)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
 
   useEffect(() => {
     loadData()
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void loadChatUnreadCount()
+    }, 15000)
+
+    return () => window.clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -118,8 +127,20 @@ export default function GuestDashboardPage() {
       setUsername(nextUsername)
       setAvatarUrl((user.user_metadata?.avatar_url as string | undefined) ?? null)
     }
-    await loadMembership()
+    await Promise.all([loadMembership(), loadChatUnreadCount()])
     setLoading(false)
+  }
+
+  async function loadChatUnreadCount() {
+    try {
+      const res = await fetch('/api/chat', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json() as { items?: Array<{ unreadCount?: number }> }
+      const unread = (json.items ?? []).reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
+      setChatUnreadCount(unread)
+    } catch {
+      // silent: unread badge should not block dashboard rendering
+    }
   }
 
   async function handleAvatarUpload(file: File | null) {
@@ -286,7 +307,17 @@ export default function GuestDashboardPage() {
                 border: `1px solid ${activeTab === tab.id ? 'var(--accent)' : 'var(--border)'}`,
               }}
             >
-              {tab.label}
+              <span className="inline-flex items-center gap-2">
+                {tab.label}
+                {tab.id === 'chat' && chatUnreadCount > 0 && (
+                  <span
+                    aria-label={`${chatUnreadCount} unread chat messages`}
+                    title={`${chatUnreadCount} unread`}
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                  />
+                )}
+              </span>
             </button>
           ))}
         </div>

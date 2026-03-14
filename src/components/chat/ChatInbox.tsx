@@ -132,6 +132,37 @@ export default function ChatInbox({
     }).format(new Date(value))
   }
 
+  function DeliveryIndicator({ optimistic, readAt }: { optimistic?: boolean; readAt: string | null }) {
+    if (optimistic) {
+      return (
+        <span className="text-[11px]" style={{ color: '#fde68a' }}>
+          Sending...
+        </span>
+      )
+    }
+
+    if (readAt) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: '#60a5fa' }}>
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none" aria-hidden="true">
+            <path d="M1 5L3.2 7.2L6.8 3.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M5.2 5L7.4 7.2L13 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Seen
+        </span>
+      )
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+        <svg width="12" height="10" viewBox="0 0 12 10" fill="none" aria-hidden="true">
+          <path d="M1 5L3.4 7.4L10.8 1.6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Sent
+      </span>
+    )
+  }
+
   const loadConversations = useCallback(async (options?: { background?: boolean }) => {
     const background = options?.background ?? false
     if (!background || !hasLoadedConversationsRef.current) {
@@ -336,23 +367,14 @@ export default function ChatInbox({
   }, [conversations, searchQuery])
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl p-6" style={{ background: 'linear-gradient(135deg, rgba(233,30,140,0.08), rgba(59,130,246,0.08))', border: '1px solid var(--border)' }}>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em]" style={{ color: 'var(--text-muted)' }}>Live chat</p>
-            <h2 className="mt-2 text-2xl font-black text-white">Inbox</h2>
-          </div>
-          {chatMeta.chatOpenForTesting && (
-            <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ background: 'rgba(59,130,246,0.15)', color: '#bfdbfe', border: '1px solid rgba(59,130,246,0.28)' }}>
-              Test mode
-            </span>
-          )}
+    <div className="space-y-4">
+      {chatMeta.chatOpenForTesting && (
+        <div className="flex justify-end">
+          <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ background: 'rgba(59,130,246,0.15)', color: '#bfdbfe', border: '1px solid rgba(59,130,246,0.28)' }}>
+            Test mode
+          </span>
         </div>
-        <p className="mt-3 text-sm" style={{ color: '#d1d5db' }}>
-          {chatMeta.message || 'Exchange private messages between registered client accounts and advisors.'}
-        </p>
-      </div>
+      )}
 
       {!chatMeta.schemaReady && (
         <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#fde68a' }}>
@@ -490,7 +512,6 @@ export default function ChatInbox({
             ) : messages.length > 0 ? (
               messages.map((entry) => {
                 const mine = entry.sender_role === role
-                const isLastMessage = messages[messages.length - 1]?.id === entry.id
                 return (
                   <div key={entry.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                     <div
@@ -506,9 +527,7 @@ export default function ChatInbox({
                           {formatMessageTime(entry.created_at)}
                         </p>
                         {mine && (
-                          <span className="text-[11px]" style={{ color: entry.optimistic ? '#fde68a' : entry.read_at && isLastMessage ? '#86efac' : 'var(--text-muted)' }}>
-                            {entry.optimistic ? 'Sending...' : entry.read_at && isLastMessage ? 'Seen' : 'Sent'}
-                          </span>
+                          <DeliveryIndicator optimistic={entry.optimistic} readAt={entry.read_at} />
                         )}
                       </div>
                     </div>
@@ -545,10 +564,7 @@ export default function ChatInbox({
               disabled={!selectedConversation || sending}
               className="input-dark resize-none min-h-[118px]"
             />
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Press `Enter` to send. Use `Shift+Enter` for a new line.
-              </p>
+            <div className="flex items-center justify-end gap-3">
               <button type="submit" disabled={!selectedConversation || sending || !message.trim()} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
                 {sending ? 'Sending...' : 'Send'}
               </button>

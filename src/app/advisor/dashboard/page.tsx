@@ -267,6 +267,7 @@ export default function DashboardPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [accountActionBusy, setAccountActionBusy] = useState<'offline' | 'online' | 'delete' | null>(null)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
   const reviewCount = advisor?.review_count ?? 0
   const reviewAverage = advisor?.review_average ?? 0
   const cannotDisableReviews = settingsReviewsEnabled && reviewCount > 0 && reviewAverage <= 2
@@ -274,6 +275,14 @@ export default function DashboardPage() {
   useEffect(() => {
     loadData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void loadChatUnreadCount()
+    }, 15000)
+
+    return () => window.clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -337,6 +346,7 @@ export default function DashboardPage() {
 
       await loadVerificationData()
       await loadBillingData()
+      await loadChatUnreadCount()
     } else {
       const json = await res.json().catch(() => ({}))
       console.error('[dashboard] load error:', json.error ?? res.status)
@@ -361,6 +371,18 @@ export default function DashboardPage() {
       setBillingMsg({ type: 'error', text: 'Unable to load billing data right now.' })
     } finally {
       setBillingLoading(false)
+    }
+  }
+
+  async function loadChatUnreadCount() {
+    try {
+      const res = await fetch('/api/chat', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json() as { items?: Array<{ unreadCount?: number }> }
+      const unread = (json.items ?? []).reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
+      setChatUnreadCount(unread)
+    } catch {
+      // silent: unread badge should not block dashboard rendering
     }
   }
 
@@ -697,7 +719,17 @@ export default function DashboardPage() {
                 border: `1px solid ${activeTab === tab.id ? 'rgba(233,30,140,0.25)' : 'transparent'}`,
               }}>
               <span>{tab.icon}</span>
-              {tab.label}
+              <span className="inline-flex items-center gap-2">
+                {tab.label}
+                {tab.id === 'chat' && chatUnreadCount > 0 && (
+                  <span
+                    aria-label={`${chatUnreadCount} unread chat messages`}
+                    title={`${chatUnreadCount} unread`}
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                  />
+                )}
+              </span>
             </button>
           ))}
           <div className="flex-1" />
@@ -729,7 +761,17 @@ export default function DashboardPage() {
                   color: activeTab === tab.id ? '#fff' : '#9ca3af',
                   border: `1px solid ${activeTab === tab.id ? 'var(--accent)' : 'var(--border)'}`,
                 }}>
-                {tab.label}
+                <span className="inline-flex items-center gap-2">
+                  {tab.label}
+                  {tab.id === 'chat' && chatUnreadCount > 0 && (
+                    <span
+                      aria-label={`${chatUnreadCount} unread chat messages`}
+                      title={`${chatUnreadCount} unread`}
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                    />
+                  )}
+                </span>
               </button>
             ))}
           </div>

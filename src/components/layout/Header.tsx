@@ -21,18 +21,50 @@ export default function Header() {
   const [searchQuery, setSearchQuery] = useState('');
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserRole(user?.user_metadata?.role ?? null);
+      const role = user?.user_metadata?.role ?? null;
+      setUserRole(role);
+      if (!role) {
+        setChatUnreadCount(0);
+      }
       setAuthLoaded(true);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserRole(session?.user?.user_metadata?.role ?? null);
+      const role = session?.user?.user_metadata?.role ?? null;
+      setUserRole(role);
+      if (!role) {
+        setChatUnreadCount(0);
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!userRole) return;
+
+    const loadUnread = async () => {
+      try {
+        const res = await fetch('/api/chat', { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json() as { items?: Array<{ unreadCount?: number }> };
+        const unread = (json.items ?? []).reduce((sum, item) => sum + (item.unreadCount ?? 0), 0);
+        setChatUnreadCount(unread);
+      } catch {
+        // silent: header badge should not block the page
+      }
+    };
+
+    void loadUnread();
+    const id = window.setInterval(() => {
+      void loadUnread();
+    }, 15000);
+
+    return () => window.clearInterval(id);
+  }, [userRole]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -42,6 +74,7 @@ export default function Header() {
   }
 
   const dashboardHref = userRole === 'advisor' ? '/advisor/dashboard' : '/guest/dashboard';
+  const chatHref = userRole === 'advisor' ? '/advisor/dashboard?tab=chat' : '/guest/dashboard?tab=chat';
 
   return (
     <header style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
@@ -110,6 +143,20 @@ export default function Header() {
                   className="hidden sm:inline-flex text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  href={chatHref}
+                  className="hidden sm:inline-flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors px-3 py-2"
+                >
+                  Chat
+                  {chatUnreadCount > 0 && (
+                    <span
+                      aria-label={`${chatUnreadCount} unread chat messages`}
+                      title={`${chatUnreadCount} unread`}
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                    />
+                  )}
                 </Link>
                 <button
                   onClick={handleSignOut}
@@ -363,6 +410,17 @@ export default function Header() {
               <>
                 <Link href={dashboardHref} onClick={() => setMobileOpen(false)} className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
                   Dashboard
+                </Link>
+                <Link href={chatHref} onClick={() => setMobileOpen(false)} className="btn-ghost text-sm px-4 py-2 flex-1 text-center inline-flex items-center justify-center gap-2">
+                  Chat
+                  {chatUnreadCount > 0 && (
+                    <span
+                      aria-label={`${chatUnreadCount} unread chat messages`}
+                      title={`${chatUnreadCount} unread`}
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                    />
+                  )}
                 </Link>
                 <button onClick={handleSignOut} className="btn-ghost text-sm px-4 py-2 flex-1 text-center">
                   Sign out
