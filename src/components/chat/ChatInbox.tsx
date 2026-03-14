@@ -366,8 +366,19 @@ export default function ChatInbox({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[340px_1fr] lg:h-[680px]">
-        <div className="rounded-xl overflow-hidden flex flex-col min-h-[320px] lg:min-h-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+      <div
+        className="overflow-hidden rounded-2xl border"
+        style={{
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+          borderColor: 'var(--border)',
+          boxShadow: '0 20px 45px rgba(0,0,0,0.32)',
+        }}
+      >
+        <div className="grid gap-0 lg:grid-cols-[280px_minmax(0,1fr)] lg:h-[78vh] lg:max-h-[920px]">
+          <div
+            className="flex flex-col min-h-[300px] lg:min-h-0 lg:border-r"
+            style={{ background: 'rgba(14,14,18,0.82)', borderColor: 'var(--border)' }}
+          >
           <div className="px-4 py-4 border-b space-y-3" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-white">Conversations</p>
@@ -436,7 +447,10 @@ export default function ChatInbox({
           </div>
         </div>
 
-        <div className="rounded-xl overflow-hidden flex flex-col h-[620px] lg:h-full min-h-0" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+        <div
+          className="flex flex-col h-[72vh] min-h-[620px] max-h-[860px] lg:h-full lg:min-h-0 lg:max-h-none"
+          style={{ background: 'linear-gradient(180deg, rgba(23,23,33,0.92), rgba(12,12,18,0.94))' }}
+        >
           <div className="px-5 py-4 border-b flex items-center justify-between gap-4" style={{ borderColor: 'var(--border)' }}>
             <div className="flex items-center gap-3">
               {selectedConversation && (
@@ -516,7 +530,7 @@ export default function ChatInbox({
           <form onSubmit={handleSendMessage} className="px-5 py-4 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
             <textarea
               ref={composerRef}
-              rows={3}
+              rows={4}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
@@ -529,7 +543,7 @@ export default function ChatInbox({
               }}
               placeholder={selectedConversation ? 'Write your message...' : 'Select a conversation first'}
               disabled={!selectedConversation || sending}
-              className="input-dark resize-none"
+              className="input-dark resize-none min-h-[118px]"
             />
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -541,6 +555,7 @@ export default function ChatInbox({
             </div>
           </form>
         </div>
+      </div>
       </div>
     </div>
   )

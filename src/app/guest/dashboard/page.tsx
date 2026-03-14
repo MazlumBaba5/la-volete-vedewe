@@ -267,7 +267,9 @@ export default function GuestDashboardPage() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+      <div
+        className={`${activeTab === 'chat' ? 'max-w-[1400px]' : 'max-w-2xl'} mx-auto px-4 py-8 space-y-6`}
+      >
         <div className="flex gap-1">
             {([
               { id: 'account', label: 'Account' },
