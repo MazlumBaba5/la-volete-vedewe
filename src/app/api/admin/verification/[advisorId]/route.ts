@@ -50,8 +50,7 @@ export async function PATCH(
       .eq('id', advisorId)
 
     if (error && isMissingReviewedAtColumn(error.message)) {
-      const fallbackPatch = { ...patch }
-      delete fallbackPatch.verification_reviewed_at
+      const { verification_reviewed_at: _ignored, ...fallbackPatch } = patch
       error = (
         await admin
           .from('advisors')

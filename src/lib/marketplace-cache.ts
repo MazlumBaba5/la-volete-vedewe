@@ -12,7 +12,7 @@ const BASE_MARKETPLACE_TAGS = [
 export function invalidateMarketplaceCache(extraTags: string[] = []) {
   const tags = [...BASE_MARKETPLACE_TAGS, ...extraTags]
   for (const tag of tags) {
-    revalidateTag(tag)
+    revalidateTag(tag, 'max')
   }
 }
 

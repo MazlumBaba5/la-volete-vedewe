@@ -93,7 +93,7 @@ export function getSubscriptionPlan(plan: string) {
     throw new Error(`Missing Stripe price id for plan "${plan}"`)
   }
 
-  return config
+  return { ...config, priceId: config.priceId }
 }
 
 export function getCreditPack(pack: string) {
@@ -106,7 +106,7 @@ export function getCreditPack(pack: string) {
     throw new Error(`Missing Stripe price id for credit pack "${pack}"`)
   }
 
-  return config
+  return { ...config, priceId: config.priceId }
 }
 
 export function getClientMembershipPlan(plan: string) {
@@ -119,5 +119,5 @@ export function getClientMembershipPlan(plan: string) {
     throw new Error(`Missing Stripe price id for client membership plan "${plan}"`)
   }
 
-  return config
+  return { ...config, priceId: config.priceId }
 }

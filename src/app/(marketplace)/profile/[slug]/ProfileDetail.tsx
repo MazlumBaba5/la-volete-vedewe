@@ -88,13 +88,15 @@ export default function ProfileDetail({ profile, related }: Props) {
       return;
     }
 
+    const reviewsUrl = reviewsApiUrl;
+
     let active = true;
 
     async function loadReviews() {
       setReviewsLoading(true);
       setReviewsError('');
       try {
-        const res = await fetch(reviewsApiUrl, { cache: 'no-store' });
+        const res = await fetch(reviewsUrl, { cache: 'no-store' });
         const json = await res.json();
         if (!res.ok) {
           throw new Error(json.error ?? 'Unable to load reviews');
@@ -130,8 +132,10 @@ export default function ProfileDetail({ profile, related }: Props) {
       return;
     }
 
+    const reviewsUrl = reviewsApiUrl;
+
     try {
-      const res = await fetch(reviewsApiUrl, {
+      const res = await fetch(reviewsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,7 +151,7 @@ export default function ProfileDetail({ profile, related }: Props) {
         return;
       }
 
-      const refresh = await fetch(reviewsApiUrl, { cache: 'no-store' });
+      const refresh = await fetch(reviewsUrl, { cache: 'no-store' });
       const refreshJson = await refresh.json();
       if (refresh.ok) {
         setReviewsData(refreshJson as ReviewsPayload);

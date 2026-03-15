@@ -66,6 +66,10 @@ export async function GET() {
       })
     }
 
+    if (!advisor) {
+      return NextResponse.json({ error: 'Advisor profile not found.' }, { status: 404 })
+    }
+
     const { data: uploads, error: uploadsError } = await admin
       .from('advisor_verification_uploads')
       .select('id, kind, url, created_at')
@@ -105,6 +109,7 @@ export async function POST() {
       .single()
 
     if (advisorError) return NextResponse.json({ error: advisorError.message }, { status: 500 })
+    if (!advisor) return NextResponse.json({ error: 'Advisor profile not found.' }, { status: 404 })
 
     const { data: uploads, error: uploadsError } = await admin
       .from('advisor_verification_uploads')

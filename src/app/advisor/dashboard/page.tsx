@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactElement } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -1582,7 +1582,7 @@ export default function DashboardPage() {
                   </div>
 
                   {SUBSCRIPTION_COMPARISON.flatMap((section, sectionIndex) => {
-                    const items: JSX.Element[] = []
+                    const items: ReactElement[] = []
 
                     if (sectionIndex > 0) {
                       items.push(

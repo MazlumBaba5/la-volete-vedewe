@@ -135,7 +135,7 @@ function isMissingReviewsEnabled(error: { message?: string } | null) {
 }
 
 async function selectAdvisorRows(
-  runQuery: (columns: string) => Promise<{ data: unknown; error: { message?: string } | null }>
+  runQuery: (columns: string) => PromiseLike<{ data: unknown; error: { message?: string } | null }>
 ): Promise<Record<string, unknown>[]> {
   const primary = await runQuery(PUBLIC_COLUMNS)
   if (!primary.error) {

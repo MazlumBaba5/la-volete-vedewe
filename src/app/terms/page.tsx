@@ -1,5 +1,11 @@
 import { LEGAL_DETAILS, LEGAL_PLACEHOLDER_NOTICE } from '@/lib/legal'
 
+type TermsSection = {
+  title: string
+  paragraphs: readonly string[]
+  bullets?: readonly string[]
+}
+
 const sections = [
   {
     title: '1. OWNERSHIP AND CORPORATE DATA',
@@ -71,7 +77,7 @@ const sections = [
       '9.1 These Terms are governed by and construed in accordance with the laws of The Netherlands, or, until formal registration, the laws applicable to the registered owner. Any disputes shall be submitted to the exclusive jurisdiction of the competent courts in the owner’s region, unless mandatory law requires otherwise.',
     ],
   },
-] as const
+] satisfies readonly TermsSection[]
 
 export default function TermsPage() {
   return (
