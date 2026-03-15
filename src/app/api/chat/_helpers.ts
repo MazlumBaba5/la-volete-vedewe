@@ -2,6 +2,11 @@ import { createAdminClient, createClient } from '@/lib/supabase/server'
 
 export type ChatRole = 'guest' | 'advisor'
 type DbErrorLike = { code?: string; message?: string }
+type ChatRateLimitResult = {
+  allowed: boolean
+  retryAfterSeconds: number
+  message?: string
+}
 
 type ConversationAccessRow = {
   id: string
@@ -143,4 +148,89 @@ export async function refreshConversationSummary(
       last_message_preview: nextPreview,
     })
     .eq('id', conversationId)
+}
+
+const CHAT_RATE_LIMITS = {
+  minIntervalMs: 900,
+  shortWindowSeconds: 15,
+  shortWindowMax: 8,
+  longWindowSeconds: 300,
+  longWindowMax: 70,
+  perConversationWindowSeconds: 30,
+  perConversationWindowMax: 15,
+}
+
+function buildRateLimitResponse(message: string, retryAfterSeconds: number): ChatRateLimitResult {
+  return {
+    allowed: false,
+    retryAfterSeconds,
+    message,
+  }
+}
+
+export async function checkChatRateLimit(profileId: string, conversationId: string): Promise<ChatRateLimitResult> {
+  const admin = createAdminClient()
+  const now = Date.now()
+
+  const { data: latestMessage } = await admin
+    .from('chat_messages')
+    .select('created_at')
+    .eq('sender_profile_id', profileId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const lastCreatedAt = latestMessage ? Date.parse(String((latestMessage as { created_at: string }).created_at)) : NaN
+  if (Number.isFinite(lastCreatedAt)) {
+    const elapsedMs = now - lastCreatedAt
+    if (elapsedMs < CHAT_RATE_LIMITS.minIntervalMs) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((CHAT_RATE_LIMITS.minIntervalMs - elapsedMs) / 1000))
+      return buildRateLimitResponse('You are sending messages too quickly. Please wait a moment.', retryAfterSeconds)
+    }
+  }
+
+  const shortWindowFrom = new Date(now - CHAT_RATE_LIMITS.shortWindowSeconds * 1000).toISOString()
+  const { count: shortCount } = await admin
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('sender_profile_id', profileId)
+    .gte('created_at', shortWindowFrom)
+
+  if ((shortCount ?? 0) >= CHAT_RATE_LIMITS.shortWindowMax) {
+    return buildRateLimitResponse(
+      `Too many messages in ${CHAT_RATE_LIMITS.shortWindowSeconds} seconds. Please slow down.`,
+      CHAT_RATE_LIMITS.shortWindowSeconds
+    )
+  }
+
+  const perConversationFrom = new Date(now - CHAT_RATE_LIMITS.perConversationWindowSeconds * 1000).toISOString()
+  const { count: perConversationCount } = await admin
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('sender_profile_id', profileId)
+    .eq('conversation_id', conversationId)
+    .gte('created_at', perConversationFrom)
+
+  if ((perConversationCount ?? 0) >= CHAT_RATE_LIMITS.perConversationWindowMax) {
+    return buildRateLimitResponse(
+      'Too many messages in this conversation. Please wait before sending more.',
+      CHAT_RATE_LIMITS.perConversationWindowSeconds
+    )
+  }
+
+  const longWindowFrom = new Date(now - CHAT_RATE_LIMITS.longWindowSeconds * 1000).toISOString()
+  const { count: longCount } = await admin
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('sender_profile_id', profileId)
+    .gte('created_at', longWindowFrom)
+
+  if ((longCount ?? 0) >= CHAT_RATE_LIMITS.longWindowMax) {
+    return buildRateLimitResponse(
+      'Message limit reached for the moment. Try again shortly.',
+      60
+    )
+  }
+
+  return { allowed: true, retryAfterSeconds: 0 }
 }

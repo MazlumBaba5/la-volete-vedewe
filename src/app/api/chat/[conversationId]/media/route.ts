@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import cloudinary from '@/lib/cloudinary/config'
-import { getActor, getConversationBlockState, validateConversationAccess } from '@/app/api/chat/_helpers'
+import {
+  checkChatRateLimit,
+  getActor,
+  getConversationBlockState,
+  validateConversationAccess,
+} from '@/app/api/chat/_helpers'
 import { isMissingColumnError } from '@/app/api/chat/_helpers'
 
 export const runtime = 'nodejs'
@@ -41,6 +46,17 @@ export async function POST(
     const blockState = await getConversationBlockState(conversation, user.id)
     if (blockState.isBlocked) {
       return NextResponse.json({ error: 'This conversation is blocked.' }, { status: 403 })
+    }
+
+    const rateLimit = await checkChatRateLimit(user.id, conversationId)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: rateLimit.message ?? 'Too many messages. Please slow down.',
+          retry_after_seconds: rateLimit.retryAfterSeconds,
+        },
+        { status: 429 }
+      )
     }
 
     const formData = await req.formData()

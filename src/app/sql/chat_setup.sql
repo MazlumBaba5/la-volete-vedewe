@@ -86,6 +86,9 @@ CREATE INDEX IF NOT EXISTS chat_conversations_guest_last_message_idx
 CREATE INDEX IF NOT EXISTS chat_messages_conversation_created_idx
   ON public.chat_messages (conversation_id, created_at ASC);
 
+CREATE INDEX IF NOT EXISTS chat_messages_sender_created_idx
+  ON public.chat_messages (sender_profile_id, created_at DESC);
+
 CREATE UNIQUE INDEX IF NOT EXISTS chat_blocks_pair_idx
   ON public.chat_blocks (advisor_id, guest_profile_id);
 
