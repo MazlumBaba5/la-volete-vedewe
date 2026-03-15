@@ -14,6 +14,17 @@ CREATE TABLE public.advisor_media (
   CONSTRAINT advisor_media_pkey PRIMARY KEY (id),
   CONSTRAINT advisor_media_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
 );
+CREATE TABLE public.advisor_verification_uploads (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  advisor_id uuid NOT NULL,
+  kind text NOT NULL,
+  cloudinary_id text NOT NULL,
+  url text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT advisor_verification_uploads_pkey PRIMARY KEY (id),
+  CONSTRAINT advisor_verification_uploads_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id),
+  CONSTRAINT advisor_verification_uploads_kind_check CHECK (kind = ANY (ARRAY['front_selfie'::text, 'proof_selfie'::text]))
+);
 CREATE TABLE public.advisors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   profile_id uuid NOT NULL UNIQUE,
@@ -46,6 +57,10 @@ CREATE TABLE public.advisors (
   telegram_available boolean DEFAULT false,
   reviews_enabled boolean NOT NULL DEFAULT true,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::advisor_status,
+  verification_status text NOT NULL DEFAULT 'not_submitted'::text,
+  verification_submitted_at timestamp with time zone,
+  verification_reviewed_at timestamp with time zone,
+  verification_note text,
   is_verified boolean DEFAULT false,
   is_featured boolean DEFAULT false,
   views_count integer NOT NULL DEFAULT 0,
@@ -63,6 +78,49 @@ CREATE TABLE public.cities (
   count integer DEFAULT 0,
   region text,
   CONSTRAINT cities_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.chat_conversations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  advisor_id uuid NOT NULL,
+  guest_profile_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_message_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_message_preview text,
+  CONSTRAINT chat_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_conversations_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
+);
+CREATE TABLE public.chat_messages (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  conversation_id uuid NOT NULL,
+  sender_profile_id uuid NOT NULL,
+  sender_role text NOT NULL,
+  body text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  read_at timestamp with time zone,
+  CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.chat_conversations(id),
+  CONSTRAINT chat_messages_sender_role_check CHECK (sender_role = ANY (ARRAY['advisor'::text, 'guest'::text]))
+);
+CREATE TABLE public.client_memberships (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  profile_id uuid NOT NULL,
+  plan text NOT NULL DEFAULT 'gold'::text,
+  status text NOT NULL DEFAULT 'inactive'::text,
+  stripe_customer_id text,
+  stripe_subscription_id text UNIQUE,
+  stripe_price_id text,
+  current_period_start timestamp with time zone,
+  current_period_end timestamp with time zone,
+  cancel_at_period_end boolean NOT NULL DEFAULT false,
+  cancelled_at timestamp with time zone,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT client_memberships_pkey PRIMARY KEY (id),
+  CONSTRAINT client_memberships_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT client_memberships_plan_check CHECK (plan = 'gold'::text),
+  CONSTRAINT client_memberships_status_check CHECK (status = ANY (ARRAY['active'::text, 'canceled'::text, 'expired'::text, 'inactive'::text]))
 );
 CREATE TABLE public.dutch_cities (
   name text NOT NULL,

@@ -10,14 +10,18 @@ import {
   sanitizeServices,
 } from '@/lib/advisor-profile-options'
 import { findDutchCity } from '@/lib/netherlands-cities'
+import { invalidateMarketplaceCache } from '@/lib/marketplace-cache'
 
 const ALLOWED_FIELDS = [
-  'name', 'bio', 'city', 'region', 'advisor_category', 'age', 'gender',
+  'name', 'bio', 'city', 'region', 'age', 'gender',
   'height_cm', 'weight_kg', 'eye_color', 'hair_color', 'ethnicity',
   'phone', 'whatsapp_available', 'telegram_available',
   'availability', 'languages', 'services_tags', 'sexual_orientation',
   'date_types', 'incall_rates', 'outcall_rates', 'availability_slots', 'reviews_enabled',
 ] as const
+
+type AdvisorGender = 'female' | 'male' | 'shemale' | 'couple'
+type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale'
 
 function makeSlug(name = '') {
   const base = name
@@ -25,6 +29,13 @@ function makeSlug(name = '') {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
   return `${base || 'user'}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function categoryFromGender(gender: AdvisorGender): AdvisorCategory {
+  if (gender === 'male') return 'man'
+  if (gender === 'shemale') return 'shemale'
+  if (gender === 'couple') return 'couple'
+  return 'woman'
 }
 
 async function getAdvisorReviewStats(admin: ReturnType<typeof createAdminClient>, advisorId: string) {
@@ -100,7 +111,12 @@ export async function POST() {
     const city = metaCity?.city || 'Amsterdam'
     const phone = (meta.phone as string | undefined)?.trim() || null
     const whatsappAvailable = Boolean(meta.whatsapp_available)
-    const advisorCategory = (meta.advisor_category as string | undefined)?.trim() || 'woman'
+    const rawGender = (meta.gender as string | undefined)?.trim()
+    const nextGender: AdvisorGender =
+      rawGender === 'male' || rawGender === 'female' || rawGender === 'shemale' || rawGender === 'couple'
+        ? rawGender
+        : 'female'
+    const advisorCategory = categoryFromGender(nextGender)
     const dateTypes = sanitizeDateTypes(meta.date_types as string[] | undefined)
     const incallRates = sanitizeRates(meta.incall_rates as unknown[] | undefined, 'incall')
     const outcallRates = sanitizeRates(meta.outcall_rates as unknown[] | undefined, 'outcall')
@@ -116,7 +132,7 @@ export async function POST() {
         region: metaCity?.region || null,
         bio: (meta.bio as string | undefined)?.trim() || null,
         age: typeof meta.age === 'number' ? meta.age : null,
-        gender: (meta.gender as string | undefined) ?? 'female',
+        gender: nextGender,
         ethnicity: (meta.ethnicity as string | undefined)?.trim() || null,
         sexual_orientation: (meta.sexual_orientation as string | undefined)?.trim() || null,
         date_types: dateTypes,
@@ -133,6 +149,7 @@ export async function POST() {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    invalidateMarketplaceCache()
     return NextResponse.json({ ...data, review_count: 0, review_average: 0 }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -154,7 +171,7 @@ export async function PATCH(req: Request) {
     const admin = createAdminClient()
     const { data: current, error: currentError } = await admin
       .from('advisors')
-      .select('age, ethnicity, gender')
+      .select('age, ethnicity, gender, advisor_category')
       .eq('profile_id', user.id)
       .single()
 
@@ -194,13 +211,18 @@ export async function PATCH(req: Request) {
 
     if ('gender' in updates) {
       const gender = String(updates.gender ?? '').trim()
-      if (!['female', 'male', 'shemale'].includes(gender)) {
+      if (!['female', 'male', 'shemale', 'couple'].includes(gender)) {
         return NextResponse.json({ error: 'Please select a valid gender' }, { status: 400 })
       }
       if (current.gender !== null && current.gender !== gender) {
         return NextResponse.json({ error: 'Gender cannot be changed once saved' }, { status: 400 })
       }
       updates.gender = gender
+      updates.advisor_category = categoryFromGender(gender as AdvisorGender)
+    }
+
+    if (!('gender' in updates) && current.gender) {
+      updates.advisor_category = categoryFromGender(current.gender as AdvisorGender)
     }
 
     if ('sexual_orientation' in updates) {
@@ -293,6 +315,7 @@ export async function PATCH(req: Request) {
       .eq('profile_id', user.id)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    invalidateMarketplaceCache()
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

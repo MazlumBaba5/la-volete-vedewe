@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/server';
-import type { Advisor, SearchFilters, SearchResult } from '@/types';
+import type { SearchFilters, SearchResult } from '@/types';
 
 /**
  * Search Service - Business logic for search and filtering operations
@@ -11,9 +11,6 @@ export async function searchAdvisors(filters: SearchFilters): Promise<SearchResu
     const supabase = createAdminClient();
     const {
       query,
-      category,
-      minPrice,
-      maxPrice,
       subscriptionLevel,
       verified,
       sortBy = 'relevance',

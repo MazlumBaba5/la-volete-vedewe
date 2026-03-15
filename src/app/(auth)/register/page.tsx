@@ -22,13 +22,11 @@ import {
 } from '@/lib/advisor-profile-options';
 
 type Role = 'guest' | 'advisor';
-type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale';
-type GenderType = 'female' | 'male' | 'shemale';
+type GenderType = 'female' | 'male' | 'shemale' | 'couple';
 type RegisterForm = {
   email: string;
   password: string;
   name: string;
-  advisorCategory: AdvisorCategory;
   age: string;
   ethnicity: string;
   gender: GenderType;
@@ -59,6 +57,13 @@ function toggleValue(values: string[], value: string) {
   return values.includes(value)
     ? values.filter((item) => item !== value)
     : [...values, value];
+}
+
+function categoryFromGender(gender: GenderType) {
+  if (gender === 'male') return 'man';
+  if (gender === 'shemale') return 'shemale';
+  if (gender === 'couple') return 'couple';
+  return 'woman';
 }
 
 function ServiceSection({
@@ -139,7 +144,6 @@ export default function RegisterPage() {
     email: '',
     password: '',
     name: '',
-    advisorCategory: 'woman',
     age: '',
     ethnicity: '',
     gender: 'female',
@@ -184,6 +188,15 @@ export default function RegisterPage() {
     }));
   }
 
+  function applyAvailability247() {
+    const fullDaySlots = AVAILABILITY_DAYS.map((day) => `${day} - Full day`);
+    updateField('availabilitySlots', fullDaySlots);
+  }
+
+  function clearAvailabilitySlots() {
+    updateField('availabilitySlots', []);
+  }
+
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     setStep(2);
@@ -202,7 +215,7 @@ export default function RegisterPage() {
           password: form.password,
           role,
           name: form.name,
-          advisorCategory: form.advisorCategory,
+          advisorCategory: categoryFromGender(form.gender),
           age: form.age ? Number(form.age) : null,
           ethnicity: form.ethnicity,
           gender: form.gender,
@@ -356,7 +369,7 @@ export default function RegisterPage() {
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" required checked={form.agreeTerms} onChange={(e) => updateField('agreeTerms', e.target.checked)} className="accent-pink-500 mt-0.5 shrink-0" />
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  I agree to the <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>Terms of Service</Link> and the <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>Privacy Policy</Link>.
+                  I agree to the <Link href="/terms" className="underline" style={{ color: 'var(--accent)' }}>Terms & Conditions</Link> and the <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>Privacy Policy</Link>.
                 </span>
               </label>
             </div>
@@ -393,6 +406,7 @@ export default function RegisterPage() {
                       <option value="female">Female</option>
                       <option value="male">Male</option>
                       <option value="shemale">Shemale / Trans</option>
+                      <option value="couple">Couple</option>
                     </select>
                   </div>
                 </div>
@@ -415,15 +429,6 @@ export default function RegisterPage() {
                       ))}
                     </select>
                   </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
-                  <select value={form.advisorCategory} onChange={(e) => updateField('advisorCategory', e.target.value as AdvisorCategory)} className="input-dark">
-                    <option value="woman">Woman</option>
-                    <option value="man">Man</option>
-                    <option value="couple">Couple</option>
-                    <option value="shemale">Shemale</option>
-                  </select>
                 </div>
               </div>
 
@@ -499,6 +504,32 @@ export default function RegisterPage() {
 
             <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
               <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Availability</h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={applyAvailability247}
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    background: 'rgba(233,30,140,0.15)',
+                    border: '1px solid rgba(233,30,140,0.45)',
+                    color: '#fff',
+                  }}
+                >
+                  24/7 (All days Full day)
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAvailabilitySlots}
+                  className="rounded-full px-3 py-1.5 text-xs"
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border)',
+                    color: '#cbd5e1',
+                  }}
+                >
+                  Clear all
+                </button>
+              </div>
               <div className="space-y-4">
                 {AVAILABILITY_DAYS.map((day) => (
                   <div key={day} className="space-y-2">

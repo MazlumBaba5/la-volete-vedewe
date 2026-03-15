@@ -24,7 +24,7 @@ export default function AuthLayout({
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Lvvd
+            L❤❤D
           </span>
         </Link>
         <Link href="/" className="text-sm text-gray-400 hover:text-white transition-colors">

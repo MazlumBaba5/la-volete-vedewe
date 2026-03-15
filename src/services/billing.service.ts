@@ -45,9 +45,30 @@ async function findSubscriptionOwner(stripeSubscriptionId: string) {
   return data?.advisor_id as string | undefined
 }
 
+async function findClientMembershipOwner(stripeSubscriptionId: string) {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('client_memberships')
+    .select('profile_id')
+    .eq('stripe_subscription_id', stripeSubscriptionId)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data?.profile_id as string | undefined
+}
+
 export async function syncSubscriptionFromStripe(subscription: Stripe.Subscription) {
   const supabase = createAdminClient()
   const metadata = subscription.metadata ?? {}
+
+  if (metadata.kind === 'client_membership') {
+    return
+  }
+
   const advisorId = metadata.advisor_id || await findSubscriptionOwner(subscription.id)
   const tier = metadata.tier === 'diamond' ? 'diamond' : metadata.tier === 'premium' ? 'premium' : 'free'
   const period = getSubscriptionPeriod(subscription)
@@ -101,6 +122,74 @@ export async function syncSubscriptionFromStripe(subscription: Stripe.Subscripti
 
   const { error } = await supabase
     .from('subscriptions')
+    .insert([{ ...payload, created_at: new Date().toISOString() }])
+
+  if (error) {
+    throw error
+  }
+}
+
+export async function syncClientMembershipFromStripe(subscription: Stripe.Subscription) {
+  const supabase = createAdminClient()
+  const metadata = subscription.metadata ?? {}
+
+  if (metadata.kind && metadata.kind !== 'client_membership') {
+    return
+  }
+
+  const profileId = metadata.profile_id || await findClientMembershipOwner(subscription.id)
+  const plan = metadata.plan === 'gold' ? 'gold' : null
+  const period = getSubscriptionPeriod(subscription)
+
+  if (!profileId || !plan) {
+    console.warn('[stripe] Missing profile_id or plan on client membership sync', {
+      stripeSubscriptionId: subscription.id,
+      profileId,
+      plan,
+    })
+    return
+  }
+
+  const payload = {
+    profile_id: profileId,
+    plan,
+    status: mapStripeStatus(subscription.status),
+    stripe_subscription_id: subscription.id,
+    stripe_customer_id: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id,
+    stripe_price_id: subscription.items.data[0]?.price?.id ?? null,
+    current_period_start: period.start,
+    current_period_end: period.end,
+    cancel_at_period_end: subscription.cancel_at_period_end,
+    cancelled_at: toIsoDate(subscription.canceled_at),
+    metadata,
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data: existing, error: lookupError } = await supabase
+    .from('client_memberships')
+    .select('id')
+    .eq('stripe_subscription_id', subscription.id)
+    .maybeSingle()
+
+  if (lookupError) {
+    throw lookupError
+  }
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('client_memberships')
+      .update(payload)
+      .eq('id', existing.id)
+
+    if (error) {
+      throw error
+    }
+
+    return
+  }
+
+  const { error } = await supabase
+    .from('client_memberships')
     .insert([{ ...payload, created_at: new Date().toISOString() }])
 
   if (error) {
@@ -321,6 +410,124 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
     .insert([{
       advisor_id: advisorId,
       tier,
+      status: 'active',
+      stripe_subscription_id: referenceId,
+      stripe_customer_id: customerId ?? null,
+      stripe_price_id: metadata.price_id ?? null,
+      current_period_start: nowIso,
+      current_period_end: periodEnd.toISOString(),
+      cancel_at_period_end: false,
+      cancelled_at: null,
+      metadata: {
+        ...metadata,
+        source: 'stripe_checkout_manual',
+        checkout_session_id: session.id,
+        payment_intent_id: paymentIntentId,
+      },
+      created_at: nowIso,
+      updated_at: nowIso,
+    }])
+
+  if (insertError) {
+    throw insertError
+  }
+}
+
+export async function activateClientMembershipFromCheckoutSession(session: Stripe.Checkout.Session) {
+  const metadata = session.metadata ?? {}
+
+  if (metadata.kind !== 'client_membership') {
+    return
+  }
+
+  if (session.payment_status !== 'paid') {
+    console.warn('[stripe] Client membership checkout completed without a paid status', {
+      sessionId: session.id,
+      paymentStatus: session.payment_status,
+    })
+    return
+  }
+
+  const profileId = metadata.profile_id
+  const plan = metadata.plan === 'gold' ? 'gold' : null
+  const paymentIntentId = typeof session.payment_intent === 'string'
+    ? session.payment_intent
+    : session.payment_intent?.id
+  const customerId = typeof session.customer === 'string'
+    ? session.customer
+    : session.customer?.id
+
+  if (!profileId || !plan || !paymentIntentId) {
+    console.warn('[stripe] Incomplete client membership checkout session metadata', {
+      sessionId: session.id,
+      profileId,
+      plan,
+      paymentIntentId,
+    })
+    return
+  }
+
+  const supabase = createAdminClient()
+  const referenceId = `manual:${paymentIntentId}`
+
+  const { data: existing, error: existingLookupError } = await supabase
+    .from('client_memberships')
+    .select('id')
+    .eq('stripe_subscription_id', referenceId)
+    .maybeSingle()
+
+  if (existingLookupError) {
+    throw existingLookupError
+  }
+
+  if (existing?.id) {
+    return
+  }
+
+  const { data: activeMemberships, error: activeLookupError } = await supabase
+    .from('client_memberships')
+    .select('id, plan, status, current_period_end')
+    .eq('profile_id', profileId)
+    .eq('status', 'active')
+    .order('current_period_end', { ascending: false })
+
+  if (activeLookupError) {
+    throw activeLookupError
+  }
+
+  const renewableMembership = (activeMemberships ?? []).find((membership) =>
+    membership.plan === plan && isSubscriptionCurrentlyActive(membership)
+  )
+
+  const now = new Date()
+  const periodBase = renewableMembership?.current_period_end
+    ? new Date(renewableMembership.current_period_end)
+    : now
+  const periodEnd = addOneMonthPreservingCalendar(periodBase)
+  const nowIso = now.toISOString()
+
+  const activeIds = (activeMemberships ?? []).map((membership) => membership.id).filter(Boolean)
+  if (activeIds.length > 0) {
+    const { error: expireError } = await supabase
+      .from('client_memberships')
+      .update({
+        status: 'expired',
+        cancel_at_period_end: false,
+        cancelled_at: nowIso,
+        updated_at: nowIso,
+      })
+      .in('id', activeIds)
+
+    if (expireError) {
+      throw expireError
+    }
+  }
+
+  const { error: insertError } = await supabase
+    .from('client_memberships')
+    .insert([{
+      profile_id: profileId,
+      plan,
       status: 'active',
       stripe_subscription_id: referenceId,
       stripe_customer_id: customerId ?? null,

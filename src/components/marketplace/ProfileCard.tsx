@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { type Profile } from '@/types';
-import { TierBadge, VerifiedBadge } from '@/components/ui/Badge';
+import { TierBadge } from '@/components/ui/Badge';
 
 interface ProfileCardProps {
   profile: Profile;
@@ -46,7 +46,6 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
           {profile.subscriptionLevel !== 'free' && (
             <TierBadge level={profile.subscriptionLevel} />
           )}
-          {profile.isVerified && <VerifiedBadge />}
         </div>
 
         {/* Online dot */}

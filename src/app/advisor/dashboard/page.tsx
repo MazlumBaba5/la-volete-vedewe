@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -22,10 +23,11 @@ import {
 } from '@/lib/advisor-profile-options'
 import CityAutocomplete from '@/components/ui/CityAutocomplete'
 import PhotoUpload, { type UploadedPhoto } from '@/components/ui/PhotoUpload'
+import ChatInbox from '@/components/chat/ChatInbox'
 
 // Types
 type GenderType = 'female' | 'male' | 'shemale'
-type AvailabilityType = 'incall' | 'outcall' | 'both'
+type AvailabilityType = 'incall' | 'outcall' | 'both' | 'offline'
 type AdvisorCategory = 'woman' | 'man' | 'couple' | 'shemale'
 
 type AdvisorRow = {
@@ -94,7 +96,7 @@ type ProfileForm = {
   telegram_available: boolean
 }
 
-type TabId = 'overview' | 'profile' | 'subscription' | 'settings'
+type TabId = 'overview' | 'profile' | 'subscription' | 'chat' | 'settings'
 type BillingTier = 'free' | 'premium' | 'diamond'
 type CheckoutPlan = BillingTier | 'starter' | 'boost' | 'power'
 
@@ -118,6 +120,23 @@ type BillingSummary = {
     description: string | null
     createdAt: string
   }>
+}
+
+type VerificationUpload = {
+  id: string
+  kind: 'front_selfie' | 'proof_selfie'
+  url: string
+  created_at: string
+}
+
+type VerificationSummary = {
+  status: string
+  is_verified: boolean
+  verification_status: 'not_submitted' | 'submitted' | 'approved' | 'rejected'
+  verification_submitted_at: string | null
+  verification_reviewed_at: string | null
+  verification_note: string | null
+  uploads: VerificationUpload[]
 }
 
 const SUBSCRIPTION_COMPARISON = [
@@ -198,10 +217,35 @@ function formatShortDate(value: string | null) {
   }).format(new Date(value))
 }
 
+const CATEGORY_OPTIONS: ReadonlyArray<{ value: AdvisorCategory; label: string }> = [
+  { value: 'woman', label: 'Woman' },
+  { value: 'man', label: 'Man' },
+  { value: 'couple', label: 'Couple' },
+  { value: 'shemale', label: 'Shemale' },
+]
+
+function getAllowedCategoriesForGender(gender: GenderType): AdvisorCategory[] {
+  if (gender === 'male') return ['man', 'couple']
+  if (gender === 'shemale') return ['shemale', 'couple']
+  return ['woman', 'couple']
+}
+
+function getDefaultCategoryForGender(gender: GenderType): AdvisorCategory {
+  return gender === 'male' ? 'man' : gender === 'shemale' ? 'shemale' : 'woman'
+}
+
+function inferGenderFromCategory(category: AdvisorCategory): GenderType | null {
+  if (category === 'man') return 'male'
+  if (category === 'woman') return 'female'
+  if (category === 'shemale') return 'shemale'
+  return null
+}
+
 // Component
 export default function DashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [initialConversationId, setInitialConversationId] = useState<string | null>(null)
   const [advisor, setAdvisor] = useState<AdvisorRow | null>(null)
   const [userEmail, setUserEmail] = useState('')
   const [loading, setLoading] = useState(true)
@@ -210,6 +254,26 @@ export default function DashboardPage() {
   const [billingLoading, setBillingLoading] = useState(true)
   const [billingBusy, setBillingBusy] = useState<string | null>(null)
   const [billingMsg, setBillingMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [verification, setVerification] = useState<VerificationSummary | null>(null)
+  const [verificationLoading, setVerificationLoading] = useState(true)
+  const [verificationUploading, setVerificationUploading] = useState<string | null>(null)
+  const [verificationSubmitting, setVerificationSubmitting] = useState(false)
+  const [verificationMsg, setVerificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const confirmationVisibleUntil =
+    verification?.verification_status === 'approved' && verification.verification_reviewed_at
+      ? new Date(verification.verification_reviewed_at).getTime() + 24 * 60 * 60 * 1000
+      : null
+  const showConfirmedVerificationMessage = Boolean(
+    confirmationVisibleUntil && confirmationVisibleUntil > Date.now()
+  )
+  const canManageVerificationUploads =
+    verification?.verification_status === 'not_submitted' ||
+    verification?.verification_status === 'rejected'
+  const isVerificationPending = verification?.verification_status === 'submitted'
+  const showVerificationCard =
+    verificationLoading ||
+    verification?.verification_status !== 'approved' ||
+    showConfirmedVerificationMessage
 
   const [form, setForm] = useState<ProfileForm>({
     name: '', bio: '', advisor_category: 'woman', city: '', region: '', age: null, gender: 'female',
@@ -226,6 +290,8 @@ export default function DashboardPage() {
   const [settingsReviewsEnabled, setSettingsReviewsEnabled] = useState(true)
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsMsg, setSettingsMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [accountActionBusy, setAccountActionBusy] = useState<'offline' | 'online' | 'delete' | null>(null)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
   const reviewCount = advisor?.review_count ?? 0
   const reviewAverage = advisor?.review_average ?? 0
   const cannotDisableReviews = settingsReviewsEnabled && reviewCount > 0 && reviewAverage <= 2
@@ -236,10 +302,22 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    const id = window.setInterval(() => {
+      void loadChatUnreadCount()
+    }, 15000)
+
+    return () => window.clearInterval(id)
+  }, [])
+
+  useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
     const requestedTab = searchParams.get('tab')
-    if (requestedTab === 'overview' || requestedTab === 'profile' || requestedTab === 'subscription' || requestedTab === 'settings') {
+    const requestedConversation = searchParams.get('conversation')
+    if (requestedTab === 'overview' || requestedTab === 'profile' || requestedTab === 'subscription' || requestedTab === 'chat' || requestedTab === 'settings') {
       setActiveTab(requestedTab)
+    }
+    if (requestedConversation) {
+      setInitialConversationId(requestedConversation)
     }
 
     const billingStatus = searchParams.get('billing')
@@ -254,6 +332,15 @@ export default function DashboardPage() {
       router.replace(target, { scroll: false })
     }
   }, [router])
+
+  useEffect(() => {
+    const allowed = getAllowedCategoriesForGender(form.gender)
+    if (allowed.includes(form.advisor_category)) return
+    setForm((current) => ({
+      ...current,
+      advisor_category: getDefaultCategoryForGender(current.gender),
+    }))
+  }, [form.advisor_category, form.gender])
 
   async function loadData() {
     const supabase = createClient()
@@ -290,7 +377,9 @@ export default function DashboardPage() {
         })))
       }
 
+      await loadVerificationData()
       await loadBillingData()
+      await loadChatUnreadCount()
     } else {
       const json = await res.json().catch(() => ({}))
       console.error('[dashboard] load error:', json.error ?? res.status)
@@ -318,8 +407,118 @@ export default function DashboardPage() {
     }
   }
 
+  async function loadChatUnreadCount() {
+    try {
+      const res = await fetch('/api/chat', { cache: 'no-store' })
+      if (!res.ok) return
+      const json = await res.json() as { items?: Array<{ unreadCount?: number }> }
+      const unread = (json.items ?? []).reduce((sum, item) => sum + (item.unreadCount ?? 0), 0)
+      setChatUnreadCount(unread)
+    } catch {
+      // silent: unread badge should not block dashboard rendering
+    }
+  }
+
+  async function loadVerificationData() {
+    setVerificationLoading(true)
+    try {
+      const res = await fetch('/api/advisor/verification', { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to load verification state')
+      }
+      setVerification(json as VerificationSummary)
+    } catch (error) {
+      console.error('[dashboard] verification load error:', error)
+      setVerificationMsg({ type: 'error', text: 'Unable to load verification data right now.' })
+    } finally {
+      setVerificationLoading(false)
+    }
+  }
+
+  async function handleVerificationUpload(kind: VerificationUpload['kind'], file: File | null) {
+    if (!file) return
+    setVerificationUploading(kind)
+    setVerificationMsg(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('kind', kind)
+
+      const res = await fetch('/api/advisor/verification/upload', {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setVerificationMsg({ type: 'error', text: json.error ?? 'Upload failed' })
+        return
+      }
+
+      setVerificationMsg({ type: 'success', text: 'Verification selfie uploaded successfully.' })
+      await loadVerificationData()
+    } catch {
+      setVerificationMsg({ type: 'error', text: 'Network error while uploading verification photo.' })
+    } finally {
+      setVerificationUploading(null)
+    }
+  }
+
+  async function handleSubmitVerification() {
+    setVerificationSubmitting(true)
+    setVerificationMsg(null)
+    try {
+      const res = await fetch('/api/advisor/verification', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        setVerificationMsg({ type: 'error', text: json.error ?? 'Unable to submit verification' })
+        return
+      }
+
+      setVerificationMsg({ type: 'success', text: 'Verification submitted. The LvvD team will review your two selfies before activating your profile.' })
+      await loadData()
+    } catch {
+      setVerificationMsg({ type: 'error', text: 'Network error while submitting verification.' })
+    } finally {
+      setVerificationSubmitting(false)
+    }
+  }
+
   function upd<K extends keyof ProfileForm>(key: K, value: ProfileForm[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+  }
+
+  function handleGenderChange(nextGender: GenderType) {
+    setForm((current) => {
+      const allowedCategories = getAllowedCategoriesForGender(nextGender)
+      const nextCategory = allowedCategories.includes(current.advisor_category)
+        ? current.advisor_category
+        : getDefaultCategoryForGender(nextGender)
+
+      return {
+        ...current,
+        gender: nextGender,
+        advisor_category: nextCategory,
+      }
+    })
+  }
+
+  function handleAdvisorCategoryChange(nextCategory: AdvisorCategory) {
+    setForm((current) => {
+      const inferredGender = inferGenderFromCategory(nextCategory)
+      if (current.gender || !inferredGender) {
+        return {
+          ...current,
+          advisor_category: nextCategory,
+        }
+      }
+
+      return {
+        ...current,
+        advisor_category: nextCategory,
+        gender: inferredGender,
+      }
+    })
   }
 
   function toggleMultiField(key: 'date_types' | 'services_tags' | 'availability_slots', value: string) {
@@ -338,6 +537,21 @@ export default function DashboardPage() {
         ...current[scope],
         [code]: value,
       },
+    }))
+  }
+
+  function applyAvailability247() {
+    const fullDaySlots = AVAILABILITY_DAYS.map((day) => `${day} - Full day`)
+    setForm((current) => ({
+      ...current,
+      availability_slots: fullDaySlots,
+    }))
+  }
+
+  function clearAvailabilitySlots() {
+    setForm((current) => ({
+      ...current,
+      availability_slots: [],
     }))
   }
 
@@ -417,6 +631,78 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleToggleOffline() {
+    if (!advisor) return
+
+    const makeOffline = advisor.availability !== 'offline'
+    const confirmed = window.confirm(
+      makeOffline
+        ? 'Set your public profile offline and hide it from the marketplace?'
+        : 'Bring your profile back online and make it visible again?'
+    )
+
+    if (!confirmed) return
+
+    const action = makeOffline ? 'offline' : 'online'
+    setAccountActionBusy(action)
+    setSettingsMsg(null)
+
+    try {
+      const res = await fetch('/api/advisor/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const json = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setSettingsMsg({ type: 'error', text: json.error ?? 'Unable to update profile visibility.' })
+        return
+      }
+
+      setSettingsMsg({
+        type: 'success',
+        text: action === 'offline'
+          ? 'Your profile is now offline and hidden from the marketplace.'
+          : 'Your profile is back online.',
+      })
+      await loadData()
+    } catch {
+      setSettingsMsg({ type: 'error', text: 'Network error while updating profile visibility.' })
+    } finally {
+      setAccountActionBusy(null)
+    }
+  }
+
+  async function handleDeleteAccount() {
+    const confirmed = window.confirm(
+      'Delete your advisor account permanently? This will remove your profile, photos and account data.'
+    )
+
+    if (!confirmed) return
+
+    setAccountActionBusy('delete')
+    setSettingsMsg(null)
+
+    try {
+      const res = await fetch('/api/advisor/account', { method: 'DELETE' })
+      const json = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        setSettingsMsg({ type: 'error', text: json.error ?? 'Unable to delete your account.' })
+        return
+      }
+
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      router.replace('/')
+    } catch {
+      setSettingsMsg({ type: 'error', text: 'Network error while deleting your account.' })
+    } finally {
+      setAccountActionBusy(null)
+    }
+  }
+
   async function handleCheckout(kind: 'subscription' | 'credits', plan: CheckoutPlan) {
     setBillingBusy(`${kind}:${plan}`)
     setBillingMsg(null)
@@ -475,6 +761,7 @@ export default function DashboardPage() {
   const hasSexCam = form.date_types.includes('SexCam')
   const hasIncall = form.date_types.includes('Incall')
   const hasOutcall = form.date_types.includes('Outcall')
+  const allowedAdvisorCategories = getAllowedCategoriesForGender(form.gender)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -485,7 +772,7 @@ export default function DashboardPage() {
         <Link href="/">
           <span className="text-xl font-black"
             style={{ background: 'linear-gradient(135deg, var(--accent), #ff6eb4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Lvvd
+            L❤❤D
           </span>
         </Link>
         <div className="flex items-center gap-3">
@@ -499,12 +786,13 @@ export default function DashboardPage() {
         {/* Sidebar */}
         <aside className="hidden lg:flex flex-col w-56 shrink-0 min-h-[calc(100vh-3.5rem)] py-6 px-4 gap-1"
           style={{ borderRight: '1px solid var(--border)' }}>
-          {([
-            { id: 'overview', icon: '📊', label: 'Overview' },
-            { id: 'profile', icon: '👤', label: 'My profile' },
-            { id: 'subscription', icon: '💎', label: 'Subscription' },
-            { id: 'settings', icon: '⚙️', label: 'Settings' },
-          ] as const).map((tab) => (
+            {([
+              { id: 'overview', icon: '📊', label: 'Overview' },
+              { id: 'profile', icon: '👤', label: 'My profile' },
+              { id: 'subscription', icon: '💎', label: 'Subscription' },
+              { id: 'chat', icon: '💬', label: 'Chat' },
+              { id: 'settings', icon: '⚙️', label: 'Settings' },
+            ] as const).map((tab) => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={{
@@ -513,7 +801,17 @@ export default function DashboardPage() {
                 border: `1px solid ${activeTab === tab.id ? 'rgba(233,30,140,0.25)' : 'transparent'}`,
               }}>
               <span>{tab.icon}</span>
-              {tab.label}
+              <span className="inline-flex items-center gap-2">
+                {tab.label}
+                {tab.id === 'chat' && chatUnreadCount > 0 && (
+                  <span
+                    aria-label={`${chatUnreadCount} unread chat messages`}
+                    title={`${chatUnreadCount} unread`}
+                    className="h-2.5 w-2.5 rounded-full"
+                    style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                  />
+                )}
+              </span>
             </button>
           ))}
           <div className="flex-1" />
@@ -535,6 +833,7 @@ export default function DashboardPage() {
               { id: 'overview', label: 'Overview' },
               { id: 'profile', label: 'Profile' },
               { id: 'subscription', label: 'Subscription' },
+              { id: 'chat', label: 'Chat' },
               { id: 'settings', label: 'Settings' },
             ] as const).map((tab) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -544,7 +843,17 @@ export default function DashboardPage() {
                   color: activeTab === tab.id ? '#fff' : '#9ca3af',
                   border: `1px solid ${activeTab === tab.id ? 'var(--accent)' : 'var(--border)'}`,
                 }}>
-                {tab.label}
+                <span className="inline-flex items-center gap-2">
+                  {tab.label}
+                  {tab.id === 'chat' && chatUnreadCount > 0 && (
+                    <span
+                      aria-label={`${chatUnreadCount} unread chat messages`}
+                      title={`${chatUnreadCount} unread`}
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{ background: '#ff4fa0', boxShadow: '0 0 0 3px rgba(255,79,160,0.22)' }}
+                    />
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -576,6 +885,157 @@ export default function DashboardPage() {
                 <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Here is a summary of your activity</p>
               </div>
 
+              {showVerificationCard && (
+              <div className="rounded-xl p-6 space-y-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>Verification</p>
+                    <h2 className="text-xl font-black text-white">
+                      {verificationLoading
+                        ? 'Loading verification...'
+                        : verification?.verification_status === 'approved'
+                        ? 'Verification confirmed'
+                        : verification?.verification_status === 'rejected'
+                        ? 'Verification refused'
+                        : verification?.verification_status === 'submitted'
+                        ? 'Verification submitted'
+                        : advisor.is_verified
+                        ? 'Profile verified'
+                        : 'Verification required'}
+                    </h2>
+                    <p className="text-sm max-w-2xl" style={{ color: '#d1d5db' }}>
+                      {verification?.verification_status === 'approved'
+                        ? 'Your verification has been approved by the LvvD team and this confirmation will stay visible for 24 hours.'
+                        : verification?.verification_status === 'rejected'
+                        ? 'Your verification was refused by the LvvD team. Review the note below, update your selfies and submit again.'
+                        : verification?.verification_status === 'submitted'
+                        ? 'Your verification is pending. The LvvD team is reviewing your private selfies before activating your profile.'
+                        : 'Upload one unfiltered frontal selfie with your chest to top of head visible, plus one selfie holding a local receipt or newspaper with a clearly visible date.'}
+                    </p>
+                  </div>
+                  <div className="rounded-xl px-4 py-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                    <p className="text-xs uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>Public status</p>
+                    <p className="mt-2 text-sm font-semibold text-white">
+                      {advisor.status === 'active' ? 'Visible on the site' : 'Hidden until verified'}
+                    </p>
+                  </div>
+                </div>
+
+                {verificationMsg && (
+                  <div className="text-xs px-4 py-3 rounded-lg"
+                    style={{
+                      background: verificationMsg.type === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${verificationMsg.type === 'success' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      color: verificationMsg.type === 'success' ? '#86efac' : '#fca5a5',
+                    }}>
+                    {verificationMsg.text}
+                  </div>
+                )}
+
+                {verification?.verification_note && (
+                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#fde68a' }}>
+                    Team note: {verification.verification_note}
+                  </div>
+                )}
+
+                {canManageVerificationUploads && (
+                  <>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      {([
+                        {
+                          kind: 'front_selfie',
+                          title: 'Front selfie',
+                          description: 'Good light, no filters, frontal pose, chest to top of head clearly visible.',
+                        },
+                        {
+                          kind: 'proof_selfie',
+                          title: 'Receipt or newspaper selfie',
+                          description: 'Hold a local receipt or newspaper so the place/date is readable in the photo.',
+                        },
+                      ] as const).map((item) => {
+                        const uploaded = verification?.uploads.some((entry) => entry.kind === item.kind)
+                        const canReplace = verification?.verification_status === 'rejected'
+                        const locked = verification?.verification_status === 'submitted' || (uploaded && !canReplace)
+                        return (
+                          <div key={item.kind} className="rounded-xl p-4 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="font-semibold text-white">{item.title}</h3>
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em]"
+                                  style={{
+                                    background: uploaded ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)',
+                                    border: `1px solid ${uploaded ? 'rgba(34,197,94,0.3)' : 'var(--border)'}`,
+                                    color: uploaded ? '#86efac' : '#d1d5db',
+                                  }}
+                                >
+                                  {uploaded ? 'Uploaded' : 'Missing'}
+                                </span>
+                              </div>
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                Uploaded verification photos stay private and are visible only to the LvvD admin team.
+                              </p>
+                            </div>
+
+                            {!locked ? (
+                              <label className="btn-outline text-sm px-4 py-2 cursor-pointer inline-flex">
+                                {verificationUploading === item.kind
+                                  ? 'Uploading...'
+                                  : uploaded && canReplace
+                                  ? 'Upload new photo'
+                                  : 'Upload photo'}
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  disabled={verificationUploading !== null}
+                                  onChange={(e) => {
+                                    handleVerificationUpload(item.kind, e.target.files?.[0] ?? null)
+                                    e.currentTarget.value = ''
+                                  }}
+                                />
+                              </label>
+                            ) : (
+                              <p className="text-xs font-medium" style={{ color: locked ? '#d1d5db' : 'var(--text-muted)' }}>
+                                {verification?.verification_status === 'submitted'
+                                  ? 'Locked while the team reviews your verification.'
+                                  : uploaded && canReplace
+                                  ? 'You can replace this file because the previous verification was refused.'
+                                  : uploaded
+                                  ? 'Already uploaded. This file cannot be changed from your dashboard.'
+                                  : 'Waiting for upload.'}
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleSubmitVerification}
+                        disabled={verificationSubmitting || verificationLoading || !verification?.uploads.some((item) => item.kind === 'front_selfie') || !verification?.uploads.some((item) => item.kind === 'proof_selfie')}
+                        className="btn-accent px-6 py-2.5 text-sm disabled:opacity-60"
+                      >
+                        {verificationSubmitting ? 'Submitting...' : verification?.verification_status === 'rejected' ? 'Submit verification again' : 'Submit verification'}
+                      </button>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        Your profile stays hidden until the LvvD team approves the verification.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {isVerificationPending && (
+                  <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.28)', color: '#bfdbfe' }}>
+                    Your verification request is in the LvvD review queue. The private photos are now visible only to the admin team.
+                  </div>
+                )}
+              </div>
+              )}
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: 'Total views', value: advisor.views_count.toLocaleString() },
@@ -594,7 +1054,7 @@ export default function DashboardPage() {
                 <div className="w-20 h-20 rounded-xl flex items-center justify-center text-4xl shrink-0 overflow-hidden"
                   style={{ background: 'var(--bg-elevated)', border: '2px dashed rgba(255,255,255,0.1)' }}>
                   {photos.find((p) => p.isCover)
-                    ? <img src={photos.find((p) => p.isCover)!.url} alt="" className="w-full h-full object-cover" />
+                    ? <Image src={photos.find((p) => p.isCover)!.url} alt="" width={320} height={320} className="h-full w-full object-cover" unoptimized />
                     : '👤'}
                 </div>
                 <div className="flex-1 space-y-3">
@@ -685,12 +1145,22 @@ export default function DashboardPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
-                    <select value={form.advisor_category} onChange={(e) => upd('advisor_category', e.target.value as AdvisorCategory)} className="input-dark">
-                      <option value="woman">Woman</option>
-                      <option value="man">Man</option>
-                      <option value="couple">Couple</option>
-                      <option value="shemale">Shemale</option>
+                    <select value={form.advisor_category} onChange={(e) => handleAdvisorCategoryChange(e.target.value as AdvisorCategory)} className="input-dark">
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={!allowedAdvisorCategories.includes(option.value)}
+                        >
+                          {allowedAdvisorCategories.includes(option.value)
+                            ? option.label
+                            : `${option.label} (not available for selected gender)`}
+                        </option>
+                      ))}
                     </select>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Gender controls which listing categories are available.
+                    </p>
                   </div>
 
                   <div>
@@ -712,7 +1182,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
-                      <select disabled={genderLocked} value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark disabled:opacity-60">
+                      <select disabled={genderLocked} value={form.gender} onChange={(e) => handleGenderChange(e.target.value as GenderType)} className="input-dark disabled:opacity-60">
                         <option value="female">Female</option>
                         <option value="male">Male</option>
                         <option value="shemale">Shemale / Trans</option>
@@ -887,6 +1357,32 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={applyAvailability247}
+                      className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: 'rgba(233,30,140,0.15)',
+                        border: '1px solid rgba(233,30,140,0.45)',
+                        color: '#fff',
+                      }}
+                    >
+                      24/7 (All days Full day)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAvailabilitySlots}
+                      className="rounded-full px-3 py-1.5 text-xs"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        color: '#cbd5e1',
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  </div>
                   {AVAILABILITY_DAYS.map((day) => (
                     <div key={day} className="space-y-2">
                       <p className="text-sm font-medium text-white">{day}</p>
@@ -1206,6 +1702,10 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {activeTab === 'chat' && (
+            <ChatInbox role="advisor" initialConversationId={initialConversationId} />
+          )}
+
           {/* ── SETTINGS ── */}
           {activeTab === 'settings' && (
             <div className="space-y-6 max-w-lg">
@@ -1276,12 +1776,47 @@ export default function DashboardPage() {
 
               <div className="rounded-xl p-6 space-y-4" style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
                 <h3 className="font-semibold" style={{ color: '#fca5a5' }}>Danger zone</h3>
-                <p className="text-sm text-gray-400">Deleting your account will permanently remove all your data.</p>
-                <button type="button" onClick={() => alert('Please contact support to delete your account.')}
-                  className="text-sm px-4 py-2 rounded-lg border transition-all"
-                  style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}>
-                  Delete account
-                </button>
+                <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-white">Profile visibility</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {advisor?.availability === 'offline'
+                        ? 'Your profile is currently hidden from the marketplace.'
+                        : 'Set your profile offline to hide it from the marketplace without deleting your account.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleOffline}
+                    disabled={accountActionBusy === 'offline' || accountActionBusy === 'online'}
+                    className="text-sm px-4 py-2 rounded-lg border transition-all disabled:opacity-60"
+                    style={{ background: 'transparent', borderColor: 'rgba(251,191,36,0.35)', color: '#fbbf24' }}
+                  >
+                    {accountActionBusy === 'offline' || accountActionBusy === 'online'
+                      ? 'Updating...'
+                      : advisor?.availability === 'offline'
+                      ? 'Bring profile online'
+                      : 'Set profile offline'}
+                  </button>
+                </div>
+
+                <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-white">Delete account</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Deleting your account will permanently remove your advisor profile and account data.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    disabled={accountActionBusy === 'delete'}
+                    className="text-sm px-4 py-2 rounded-lg border transition-all disabled:opacity-60"
+                    style={{ background: 'transparent', borderColor: 'rgba(239,68,68,0.4)', color: '#f87171' }}
+                  >
+                    {accountActionBusy === 'delete' ? 'Deleting...' : 'Delete account'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

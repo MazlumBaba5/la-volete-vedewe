@@ -4,6 +4,7 @@ import { toPublicRates } from '@/lib/advisor-profile-options'
 import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 import { findDutchCity } from '@/lib/netherlands-cities'
 import type { Profile, ProfilePhoto, Category, City } from '@/types'
+import { unstable_cache } from 'next/cache'
 
 // Selects advisor columns + their media via the FK relationship.
 // PostgREST resolves advisor_media automatically via the FK on advisor_id.
@@ -11,6 +12,7 @@ const PUBLIC_COLUMNS_BASE = `
   id,
   profile_id,
   slug,
+  status,
   name,
   advisor_category,
   age,
@@ -48,6 +50,9 @@ const PUBLIC_COLUMNS = `
 `
 
 const TIER_ORDER: Record<string, number> = { diamond: 0, premium: 1, free: 2 }
+const FETCHABLE_STATUSES = ['active', 'pending'] as const
+const VERIFICATION_GRANDFATHER_DATE = Date.parse('2026-03-13T00:00:00Z')
+const MARKETPLACE_CACHE_SECONDS = 60
 
 interface MediaRow {
   id: string
@@ -108,6 +113,23 @@ function sortByTier(profiles: Profile[]): Profile[] {
   )
 }
 
+function isLegacyPublicProfile(row: Record<string, unknown>) {
+  const status = row.status as string | undefined
+  const availability = row.availability as string | undefined
+  const createdAt = Date.parse(String(row.created_at ?? ''))
+
+  if (availability === 'offline') return false
+  if (status === 'active') return true
+  if (status === 'pending' && Number.isFinite(createdAt) && createdAt < VERIFICATION_GRANDFATHER_DATE) {
+    return true
+  }
+  return false
+}
+
+function filterPublicRows(rows: Record<string, unknown>[]) {
+  return rows.filter(isLegacyPublicProfile)
+}
+
 function isMissingReviewsEnabled(error: { message?: string } | null) {
   return error?.message?.includes('column advisors.reviews_enabled does not exist') ?? false
 }
@@ -158,12 +180,7 @@ async function enrichWithSubscriptions(
   return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
 }
 
-// Statuses that should be visible in the public marketplace.
-// 'pending' is included because advisors register as 'active' via the API;
-// any manually-inserted row defaults to 'pending' and should still appear.
-const VISIBLE_STATUSES = ['active', 'pending'] as const
-
-export async function getAllProfiles(): Promise<Profile[]> {
+async function getAllProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   let rows: Record<string, unknown>[]
   try {
@@ -171,18 +188,27 @@ export async function getAllProfiles(): Promise<Profile[]> {
       supabase
         .from('advisors')
         .select(columns)
-        .in('status', VISIBLE_STATUSES)
+        .in('status', FETCHABLE_STATUSES)
         .order('views_count', { ascending: false })
     )
   } catch (error) {
     console.error('[getAllProfiles]', (error as { message?: string }).message)
     return []
   }
-  const profiles = await enrichWithSubscriptions(supabase, rows)
+  const profiles = await enrichWithSubscriptions(supabase, filterPublicRows(rows))
   return sortByTier(profiles)
 }
 
-export async function getProfileBySlug(slug: string): Promise<Profile | null> {
+const getAllProfilesCached = unstable_cache(getAllProfilesRaw, ['advisors:all'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:profiles'],
+})
+
+export async function getAllProfiles(): Promise<Profile[]> {
+  return getAllProfilesCached()
+}
+
+async function getProfileBySlugRaw(slug: string): Promise<Profile | null> {
   const supabase = createAdminClient()
   let rows: Record<string, unknown>[]
   try {
@@ -197,7 +223,7 @@ export async function getProfileBySlug(slug: string): Promise<Profile | null> {
     return null
   }
   const row = rows[0]
-  if (!row) return null
+  if (!row || !isLegacyPublicProfile(row)) return null
   const nowIso = new Date().toISOString()
   const { data: subs } = await supabase
     .from('subscriptions')
@@ -210,7 +236,16 @@ export async function getProfileBySlug(slug: string): Promise<Profile | null> {
   return mapRow(row, isSubscriptionCurrentlyActive(subs) ? subs?.tier : undefined)
 }
 
-export async function getFeaturedProfiles(): Promise<Profile[]> {
+export async function getProfileBySlug(slug: string): Promise<Profile | null> {
+  const cachedBySlug = unstable_cache(
+    async () => getProfileBySlugRaw(slug),
+    ['advisors:by-slug', slug],
+    { revalidate: MARKETPLACE_CACHE_SECONDS, tags: [`marketplace:profile:${slug}`] }
+  )
+  return cachedBySlug()
+}
+
+async function getFeaturedProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   const nowIso = new Date().toISOString()
 
@@ -236,7 +271,7 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
           .from('advisors')
           .select(columns)
           .in('id', paidIds)
-          .in('status', VISIBLE_STATUSES)
+          .in('status', FETCHABLE_STATUSES)
           .order('views_count', { ascending: false })
           .limit(12)
       )
@@ -244,7 +279,7 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
       console.error('[getFeaturedProfiles]', (error as { message?: string }).message)
       return []
     }
-    const profiles = rows.map((r) =>
+    const profiles = filterPublicRows(rows).map((r) =>
       mapRow(r, tierMap.get(r.id as string))
     )
     return sortByTier(profiles)
@@ -256,33 +291,51 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
       supabase
         .from('advisors')
         .select(columns)
-        .in('status', VISIBLE_STATUSES)
+        .in('status', FETCHABLE_STATUSES)
         .order('views_count', { ascending: false })
         .limit(12)
     )
-    return rows.map((r) => mapRow(r))
+    return filterPublicRows(rows).map((r) => mapRow(r))
   } catch (error) {
     console.error('[getFeaturedProfiles]', (error as { message?: string }).message)
     return []
   }
 }
 
-export async function getRecentProfiles(): Promise<Profile[]> {
+const getFeaturedProfilesCached = unstable_cache(getFeaturedProfilesRaw, ['advisors:featured'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:featured'],
+})
+
+export async function getFeaturedProfiles(): Promise<Profile[]> {
+  return getFeaturedProfilesCached()
+}
+
+async function getRecentProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   try {
     const rows = await selectAdvisorRows((columns) =>
       supabase
         .from('advisors')
         .select(columns)
-        .in('status', VISIBLE_STATUSES)
+        .in('status', FETCHABLE_STATUSES)
         .order('created_at', { ascending: false })
         .limit(12)
     )
-    return enrichWithSubscriptions(supabase, rows)
+    return enrichWithSubscriptions(supabase, filterPublicRows(rows))
   } catch (error) {
     console.error('[getRecentProfiles]', (error as { message?: string }).message)
     return []
   }
+}
+
+const getRecentProfilesCached = unstable_cache(getRecentProfilesRaw, ['advisors:recent'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:recent'],
+})
+
+export async function getRecentProfiles(): Promise<Profile[]> {
+  return getRecentProfilesCached()
 }
 
 export async function searchProfiles(filters: {
@@ -300,7 +353,7 @@ export async function searchProfiles(filters: {
       let q = supabase
         .from('advisors')
         .select(columns)
-        .in('status', VISIBLE_STATUSES)
+        .in('status', FETCHABLE_STATUSES)
 
       if (filters.city) q = q.eq('city', filters.city)
       if (filters.verified) q = q.eq('is_verified', true)
@@ -319,7 +372,7 @@ export async function searchProfiles(filters: {
     return []
   }
 
-  const result = await enrichWithSubscriptions(supabase, rows)
+  const result = await enrichWithSubscriptions(supabase, filterPublicRows(rows))
 
   result.sort((a, b) => {
     const tierDiff = (TIER_ORDER[a.subscriptionLevel] ?? 2) - (TIER_ORDER[b.subscriptionLevel] ?? 2)
@@ -330,7 +383,7 @@ export async function searchProfiles(filters: {
   return result
 }
 
-export async function getCategories(): Promise<Category[]> {
+async function getCategoriesRaw(): Promise<Category[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('categories')
@@ -340,22 +393,31 @@ export async function getCategories(): Promise<Category[]> {
   return data as Category[]
 }
 
+const getCategoriesCached = unstable_cache(getCategoriesRaw, ['advisors:categories'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS * 5,
+  tags: ['marketplace:categories'],
+})
+
+export async function getCategories(): Promise<Category[]> {
+  return getCategoriesCached()
+}
+
 /**
  * Compute city counts directly from the advisors table so the data is always
  * fresh and never depends on a separately-maintained cities table.
  */
-export async function getCities(): Promise<City[]> {
+async function getCitiesRaw(): Promise<City[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('advisors')
-    .select('city, region')
-    .in('status', VISIBLE_STATUSES)
+    .select('city, region, status, created_at')
+    .in('status', FETCHABLE_STATUSES)
     .not('city', 'is', null)
 
   if (error) { console.error('[getCities]', error.message); return [] }
 
   const cityMap = new Map<string, { count: number; region: string }>()
-  for (const row of data as { city: string; region: string | null }[]) {
+  for (const row of filterPublicRows(data as unknown as Record<string, unknown>[]) as unknown as { city: string; region: string | null }[]) {
     const selectedCity = findDutchCity(row.city)
     if (!selectedCity) continue
     const city = selectedCity.city
@@ -377,6 +439,15 @@ export async function getCities(): Promise<City[]> {
     .sort((a, b) => b.count - a.count)
 }
 
+const getCitiesCached = unstable_cache(getCitiesRaw, ['advisors:cities'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:cities'],
+})
+
+export async function getCities(): Promise<City[]> {
+  return getCitiesCached()
+}
+
 export async function incrementViews(slug: string): Promise<void> {
   const supabase = createAdminClient()
   await supabase.rpc('increment_advisor_views', { advisor_slug: slug }).throwOnError()
@@ -387,27 +458,37 @@ export interface SiteStats {
   totalCities: number
 }
 
-export async function getSiteStats(): Promise<SiteStats> {
+async function getSiteStatsRaw(): Promise<SiteStats> {
   const supabase = createAdminClient()
-  const { count } = await supabase
+  const { data, error } = await supabase
     .from('advisors')
-    .select('*', { count: 'exact', head: true })
-    .in('status', VISIBLE_STATUSES)
+    .select('city, status, created_at')
+    .in('status', FETCHABLE_STATUSES)
 
-  const { data: cityData } = await supabase
-    .from('advisors')
-    .select('city')
-    .in('status', VISIBLE_STATUSES)
-    .not('city', 'is', null)
+  if (error) {
+    console.error('[getSiteStats]', error.message)
+    return { totalAdvisors: 0, totalCities: 0 }
+  }
+
+  const publicRows = filterPublicRows((data as unknown as Record<string, unknown>[]) ?? [])
 
   const cityCount = new Set(
-    (cityData ?? [])
-      .map((r: { city: string }) => findDutchCity(r.city)?.city)
+    publicRows
+      .map((r) => findDutchCity(r.city as string)?.city)
       .filter(Boolean)
   ).size
 
   return {
-    totalAdvisors: count ?? 0,
+    totalAdvisors: publicRows.length,
     totalCities: cityCount,
   }
+}
+
+const getSiteStatsCached = unstable_cache(getSiteStatsRaw, ['advisors:stats'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:stats'],
+})
+
+export async function getSiteStats(): Promise<SiteStats> {
+  return getSiteStatsCached()
 }
