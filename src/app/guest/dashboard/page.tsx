@@ -78,7 +78,7 @@ export default function GuestDashboardPage() {
     }
 
     if (billingStatus === 'success') {
-      setAccountMsg({ type: 'success', text: 'Stripe checkout completed. Gold activation will appear as soon as Stripe confirms the subscription.' })
+      setAccountMsg({ type: 'success', text: 'Stripe checkout completed. Gold activation will appear as soon as Stripe confirms the payment.' })
     } else if (billingStatus === 'cancel') {
       setAccountMsg({ type: 'error', text: 'Stripe checkout was canceled before completion.' })
     }
