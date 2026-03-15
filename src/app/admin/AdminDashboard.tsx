@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -34,6 +34,46 @@ type NotificationsResponse = {
   items: VerificationNotification[]
 }
 
+type ChatModerationReport = {
+  id: string
+  conversation_id: string
+  advisor_id: string
+  advisor_name: string
+  advisor_slug: string | null
+  guest_profile_id: string
+  guest_name: string
+  reporter_profile_id: string
+  reporter_name: string
+  reporter_role: 'advisor' | 'guest'
+  reason: 'spam' | 'abuse' | 'scam' | 'fake' | 'other'
+  details: string | null
+  status: 'open' | 'reviewing' | 'resolved' | 'dismissed'
+  admin_note: string | null
+  reviewed_at: string | null
+  reviewed_by: string | null
+  created_at: string
+}
+
+type ChatModerationBlock = {
+  id: string
+  advisor_id: string
+  advisor_name: string
+  advisor_slug: string | null
+  guest_profile_id: string
+  guest_name: string
+  blocked_by_profile_id: string
+  blocked_by_name: string
+  blocked_by_role: 'advisor' | 'guest'
+  created_at: string
+}
+
+type ChatModerationResponse = {
+  schema_ready: boolean
+  message?: string
+  reports: ChatModerationReport[]
+  blocks: ChatModerationBlock[]
+}
+
 function formatDate(value: string | null) {
   if (!value) return 'Not submitted yet'
   return new Intl.DateTimeFormat('en-GB', {
@@ -48,17 +88,19 @@ function formatDate(value: string | null) {
 export default function AdminDashboard() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [moderationLoading, setModerationLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<NotificationsResponse>({ schema_ready: true, items: [] })
+  const [moderation, setModeration] = useState<ChatModerationResponse>({
+    schema_ready: true,
+    reports: [],
+    blocks: [],
+  })
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [zoomedImage, setZoomedImage] = useState<{ url: string; label: string } | null>(null)
   const [actionBusy, setActionBusy] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadNotifications()
-  }, [])
-
-  async function loadNotifications() {
+  const loadNotifications = useCallback(async function loadNotificationsInner() {
     setLoading(true)
     setError('')
     try {
@@ -73,7 +115,32 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const loadModeration = useCallback(async function loadModerationInner() {
+    setModerationLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/chat/moderation', { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to load chat moderation data')
+      }
+      setModeration(json as ChatModerationResponse)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to load chat moderation data')
+    } finally {
+      setModerationLoading(false)
+    }
+  }, [])
+
+  const loadAll = useCallback(async function loadAllInner() {
+    await Promise.all([loadNotifications(), loadModeration()])
+  }, [loadModeration, loadNotifications])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
 
   async function handleLogout() {
     await fetch('/api/admin/auth/logout', { method: 'POST' })
@@ -95,9 +162,56 @@ export default function AdminDashboard() {
         throw new Error(json.error ?? 'Unable to update verification request')
       }
       setExpandedId((current) => (current === advisorId ? null : current))
-      await loadNotifications()
+      await loadAll()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to update verification request')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  async function handleReportAction(reportId: string, action: 'reviewing' | 'resolved' | 'dismissed') {
+    const adminNote = window.prompt('Admin note (optional)') ?? ''
+    setActionBusy(`report:${reportId}:${action}`)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/chat/reports/${reportId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          adminNote: adminNote.trim() || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to update report')
+      }
+      await loadModeration()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update report')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  async function handleLiftBlock(blockId: string) {
+    const confirmed = window.confirm('Remove this block from chat blocklist?')
+    if (!confirmed) return
+
+    setActionBusy(`block:${blockId}:lift`)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/chat/blocks/${blockId}`, {
+        method: 'DELETE',
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to remove block')
+      }
+      await loadModeration()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to remove block')
     } finally {
       setActionBusy(null)
     }
@@ -115,7 +229,7 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={loadNotifications} className="btn-outline px-4 py-2 text-sm">Refresh</button>
+            <button onClick={() => void loadAll()} className="btn-outline px-4 py-2 text-sm">Refresh</button>
             <button onClick={handleLogout} className="btn-ghost px-4 py-2 text-sm">Logout</button>
           </div>
         </div>
@@ -123,6 +237,12 @@ export default function AdminDashboard() {
         {!data.schema_ready && (
           <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#fde68a' }}>
             {data.message}
+          </div>
+        )}
+
+        {!moderation.schema_ready && (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#fde68a' }}>
+            {moderation.message}
           </div>
         )}
 
@@ -282,6 +402,151 @@ export default function AdminDashboard() {
               No advisor verification notifications yet.
             </div>
           )}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="px-6 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-lg font-bold text-white">Chat reports</h2>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {moderationLoading ? '...' : moderation.reports.length}
+              </span>
+            </div>
+
+            {moderationLoading ? (
+              <div className="px-6 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Loading reports...</div>
+            ) : moderation.reports.length > 0 ? (
+              <div className="divide-y max-h-[560px] overflow-y-auto" style={{ borderColor: 'var(--border)' }}>
+                {moderation.reports.map((report) => (
+                  <div key={report.id} className="px-6 py-5 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">
+                          {report.reporter_name} reported {report.reporter_role === 'guest' ? report.advisor_name : report.guest_name}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                          {formatDate(report.created_at)} · {report.reason.toUpperCase()}
+                        </p>
+                      </div>
+                      <span
+                        className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em]"
+                        style={{
+                          background: report.status === 'open'
+                            ? 'rgba(239,68,68,0.15)'
+                            : report.status === 'reviewing'
+                            ? 'rgba(245,158,11,0.15)'
+                            : 'rgba(34,197,94,0.15)',
+                          border: report.status === 'open'
+                            ? '1px solid rgba(239,68,68,0.35)'
+                            : report.status === 'reviewing'
+                            ? '1px solid rgba(245,158,11,0.35)'
+                            : '1px solid rgba(34,197,94,0.35)',
+                          color: report.status === 'open'
+                            ? '#fca5a5'
+                            : report.status === 'reviewing'
+                            ? '#fde68a'
+                            : '#86efac',
+                        }}
+                      >
+                        {report.status}
+                      </span>
+                    </div>
+
+                    {report.details && (
+                      <p className="text-sm" style={{ color: '#d1d5db' }}>
+                        {report.details}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {report.advisor_slug ? (
+                        <Link href={`/profile/${report.advisor_slug}`} className="btn-ghost px-3 py-1.5 text-xs">
+                          View advisor profile
+                        </Link>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void handleReportAction(report.id, 'reviewing')}
+                        disabled={actionBusy !== null}
+                        className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                      >
+                        {actionBusy === `report:${report.id}:reviewing` ? 'Saving...' : 'Mark reviewing'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleReportAction(report.id, 'resolved')}
+                        disabled={actionBusy !== null}
+                        className="btn-accent px-3 py-1.5 text-xs disabled:opacity-60"
+                      >
+                        {actionBusy === `report:${report.id}:resolved` ? 'Saving...' : 'Resolve'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleReportAction(report.id, 'dismissed')}
+                        disabled={actionBusy !== null}
+                        className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                        style={{ color: '#fca5a5' }}
+                      >
+                        {actionBusy === `report:${report.id}:dismissed` ? 'Saving...' : 'Dismiss'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-6 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+                No chat reports yet.
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            <div className="px-6 py-4 border-b flex items-center justify-between gap-3" style={{ borderColor: 'var(--border)' }}>
+              <h2 className="text-lg font-bold text-white">Chat blocklist</h2>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                {moderationLoading ? '...' : moderation.blocks.length}
+              </span>
+            </div>
+
+            {moderationLoading ? (
+              <div className="px-6 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Loading blocks...</div>
+            ) : moderation.blocks.length > 0 ? (
+              <div className="divide-y max-h-[560px] overflow-y-auto" style={{ borderColor: 'var(--border)' }}>
+                {moderation.blocks.map((block) => (
+                  <div key={block.id} className="px-6 py-5 space-y-3">
+                    <div>
+                      <p className="font-semibold text-white">
+                        {block.guest_name} ↔ {block.advisor_name}
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        Blocked by {block.blocked_by_name} ({block.blocked_by_role}) · {formatDate(block.created_at)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {block.advisor_slug ? (
+                        <Link href={`/profile/${block.advisor_slug}`} className="btn-ghost px-3 py-1.5 text-xs">
+                          View advisor profile
+                        </Link>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void handleLiftBlock(block.id)}
+                        disabled={actionBusy !== null}
+                        className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                        style={{ color: '#fca5a5' }}
+                      >
+                        {actionBusy === `block:${block.id}:lift` ? 'Removing...' : 'Remove block'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-6 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
+                No active chat blocks.
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

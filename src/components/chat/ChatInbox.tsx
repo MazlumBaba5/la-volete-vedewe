@@ -49,6 +49,16 @@ type MessagesResponse = {
   block?: BlockState
 }
 
+type ReportReason = 'spam' | 'abuse' | 'scam' | 'fake' | 'other'
+
+const REPORT_REASON_OPTIONS: Array<{ value: ReportReason; label: string }> = [
+  { value: 'spam', label: 'Spam' },
+  { value: 'abuse', label: 'Abuse' },
+  { value: 'scam', label: 'Scam' },
+  { value: 'fake', label: 'Fake profile / identity' },
+  { value: 'other', label: 'Other' },
+]
+
 export default function ChatInbox({
   role,
   initialConversationId,
@@ -70,13 +80,17 @@ export default function ChatInbox({
   })
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [messagesError, setMessagesError] = useState('')
+  const [messagesNotice, setMessagesNotice] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [blockState, setBlockState] = useState<BlockState>({ isBlocked: false, blockedByRole: null, blockedByMe: false })
   const [sending, setSending] = useState(false)
   const [mediaUploading, setMediaUploading] = useState(false)
-  const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | 'bulkDelete' | null>(null)
+  const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | 'bulkDelete' | 'report' | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([])
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportReason, setReportReason] = useState<ReportReason>('spam')
+  const [reportDetails, setReportDetails] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
@@ -224,6 +238,7 @@ export default function ChatInbox({
       setMessagesLoading(true)
     }
     setMessagesError('')
+    setMessagesNotice('')
     try {
       const res = await fetch(`/api/chat/${conversationId}/messages`, { cache: 'no-store' })
       const json = await res.json()
@@ -258,6 +273,8 @@ export default function ChatInbox({
       setBlockState({ isBlocked: false, blockedByRole: null, blockedByMe: false })
       setSelectionMode(false)
       setSelectedMessageIds([])
+      setReportModalOpen(false)
+      setMessagesNotice('')
       return
     }
 
@@ -273,6 +290,10 @@ export default function ChatInbox({
   useEffect(() => {
     setSelectionMode(false)
     setSelectedMessageIds([])
+    setReportModalOpen(false)
+    setReportReason('spam')
+    setReportDetails('')
+    setMessagesNotice('')
   }, [selectedConversationId])
 
   useEffect(() => {
@@ -327,6 +348,7 @@ export default function ChatInbox({
 
     setSending(true)
     setMessagesError('')
+    setMessagesNotice('')
     const trimmedMessage = message.trim()
     const optimisticId = `temp-${Date.now()}`
     const optimisticMessage: ChatMessage = {
@@ -399,6 +421,7 @@ export default function ChatInbox({
 
     setMediaUploading(true)
     setMessagesError('')
+    setMessagesNotice('')
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -439,6 +462,7 @@ export default function ChatInbox({
 
     setActionBusy('deleteConversation')
     setMessagesError('')
+    setMessagesNotice('')
     const conversationId = selectedConversationId
     try {
       const res = await fetch(`/api/chat/${conversationId}`, { method: 'DELETE' })
@@ -477,6 +501,7 @@ export default function ChatInbox({
 
     setActionBusy(nextAction)
     setMessagesError('')
+    setMessagesNotice('')
     try {
       const res = await fetch(`/api/chat/${selectedConversationId}/block`, {
         method: blockState.blockedByMe ? 'DELETE' : 'POST',
@@ -489,6 +514,58 @@ export default function ChatInbox({
       await loadConversations({ background: true })
     } catch (error) {
       setMessagesError(error instanceof Error ? error.message : 'Unable to update block status')
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  function openReportModal() {
+    if (!selectedConversationId || role !== 'advisor') return
+    setMessagesError('')
+    setMessagesNotice('')
+    setReportReason('spam')
+    setReportDetails('')
+    setReportModalOpen(true)
+  }
+
+  function closeReportModal() {
+    if (actionBusy === 'report') return
+    setReportModalOpen(false)
+    setReportReason('spam')
+    setReportDetails('')
+  }
+
+  async function submitReport() {
+    if (!selectedConversationId || role !== 'advisor') return
+
+    const details = reportDetails.trim()
+    if (details.length > 600) {
+      setMessagesError('Report details are too long (max 600 chars).')
+      return
+    }
+
+    setActionBusy('report')
+    setMessagesError('')
+    setMessagesNotice('')
+    try {
+      const res = await fetch(`/api/chat/${selectedConversationId}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: reportReason,
+          details: details || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to submit report')
+      }
+      setReportModalOpen(false)
+      setReportReason('spam')
+      setReportDetails('')
+      setMessagesNotice('Report submitted successfully.')
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to submit report')
     } finally {
       setActionBusy(null)
     }
@@ -517,6 +594,7 @@ export default function ChatInbox({
 
     setActionBusy('bulkDelete')
     setMessagesError('')
+    setMessagesNotice('')
     try {
       const res = await fetch(`/api/chat/${selectedConversationId}/messages/bulk-delete`, {
         method: 'POST',
@@ -643,6 +721,17 @@ export default function ChatInbox({
                   >
                     {actionBusy === 'deleteConversation' ? 'Deleting...' : 'Delete chat'}
                   </button>
+                  {role === 'advisor' && (
+                    <button
+                      type="button"
+                      onClick={openReportModal}
+                      disabled={actionBusy !== null}
+                      className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-60"
+                      style={{ color: '#fde68a' }}
+                    >
+                      {actionBusy === 'report' ? 'Reporting...' : 'Report user'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -761,6 +850,12 @@ export default function ChatInbox({
             </div>
           )}
 
+          {messagesNotice && (
+            <div className="px-5 py-3 text-sm" style={{ color: '#86efac', borderTop: '1px solid var(--border)' }}>
+              {messagesNotice}
+            </div>
+          )}
+
           <form onSubmit={handleSendMessage} className="px-4 sm:px-5 py-3 sm:py-4 border-t space-y-3" style={{ borderColor: 'var(--border)' }}>
             <textarea
               ref={composerRef}
@@ -876,6 +971,79 @@ export default function ChatInbox({
         </div>
       </div>
       </div>
+
+      {reportModalOpen && role === 'advisor' && selectedConversation && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4" onClick={closeReportModal}>
+          <div
+            className="w-full max-w-md rounded-2xl border p-5 sm:p-6"
+            style={{
+              background: 'linear-gradient(180deg, rgba(24,24,34,0.98), rgba(14,14,22,0.98))',
+              borderColor: 'var(--border)',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.45)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-white">Report user</h3>
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              Conversation with {selectedConversation.counterpartName}
+            </p>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: '#fde68a' }}>
+                Reason
+              </label>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value as ReportReason)}
+                className="input-dark text-sm"
+                disabled={actionBusy === 'report'}
+              >
+                {REPORT_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: '#fde68a' }}>
+                Details (optional)
+              </label>
+              <textarea
+                rows={4}
+                value={reportDetails}
+                onChange={(e) => setReportDetails(e.target.value.slice(0, 600))}
+                className="input-dark resize-none text-sm"
+                placeholder="Add useful context for moderation review."
+                disabled={actionBusy === 'report'}
+              />
+              <p className="text-[11px] text-right" style={{ color: 'var(--text-muted)' }}>
+                {reportDetails.length}/600
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeReportModal}
+                className="btn-ghost px-4 py-2 text-sm"
+                disabled={actionBusy === 'report'}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitReport()}
+                className="btn-accent px-4 py-2 text-sm"
+                disabled={actionBusy === 'report'}
+              >
+                {actionBusy === 'report' ? 'Submitting...' : 'Submit report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
