@@ -19,7 +19,7 @@ type Body = {
   name?: string
   advisorCategory?: 'woman' | 'man' | 'couple' | 'shemale'
   age?: number
-  gender?: 'female' | 'male' | 'shemale'
+  gender?: 'female' | 'male' | 'shemale' | 'couple'
   ethnicity?: string
   city?: string
   region?: string
@@ -32,6 +32,13 @@ type Body = {
   availabilitySlots?: string[]
   phone?: string
   whatsappAvailable?: boolean
+}
+
+function categoryFromGender(gender: 'female' | 'male' | 'shemale' | 'couple') {
+  if (gender === 'male') return 'man'
+  if (gender === 'shemale') return 'shemale'
+  if (gender === 'couple') return 'couple'
+  return 'woman'
 }
 
 function makeSlug(name = '') {
@@ -78,7 +85,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Please select a valid ethnicity' }, { status: 400 })
       }
 
-      if (!body.gender || !['female', 'male', 'shemale'].includes(body.gender)) {
+      if (!body.gender || !['female', 'male', 'shemale', 'couple'].includes(body.gender)) {
         return NextResponse.json({ error: 'Please select a valid gender' }, { status: 400 })
       }
 
@@ -115,6 +122,11 @@ export async function POST(req: Request) {
       }
     }
 
+    const normalizedGender = (body.gender && ['female', 'male', 'shemale', 'couple'].includes(body.gender))
+      ? body.gender
+      : 'female'
+    const advisorCategory = categoryFromGender(normalizedGender)
+
     const supabase = await createClient()
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -125,9 +137,9 @@ export async function POST(req: Request) {
           role: body.role,
           name: body.role === 'guest' ? normalizeGuestUsername(body.name?.trim() || '') : body.name?.trim() || '',
           username: body.role === 'guest' ? normalizeGuestUsername(body.name?.trim() || '') : '',
-          advisor_category: body.advisorCategory ?? 'woman',
+          advisor_category: advisorCategory,
           age: body.age ?? null,
-          gender: body.gender ?? 'female',
+          gender: normalizedGender,
           ethnicity: body.ethnicity?.trim() ?? '',
           city: selectedCity?.city ?? '',
           region: selectedCity?.region ?? '',
@@ -163,11 +175,11 @@ export async function POST(req: Request) {
         profile_id: userId,
         name,
         slug,
-        advisor_category: body.advisorCategory ?? 'woman',
+        advisor_category: advisorCategory,
         city,
         region: selectedCity?.region || null,
         age: body.age ?? null,
-        gender: body.gender ?? 'female',
+        gender: normalizedGender,
         ethnicity: body.ethnicity?.trim() || null,
         bio: body.bio?.trim() || null,
         sexual_orientation: body.sexualOrientation ?? null,

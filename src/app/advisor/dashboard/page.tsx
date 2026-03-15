@@ -217,6 +217,30 @@ function formatShortDate(value: string | null) {
   }).format(new Date(value))
 }
 
+const CATEGORY_OPTIONS: ReadonlyArray<{ value: AdvisorCategory; label: string }> = [
+  { value: 'woman', label: 'Woman' },
+  { value: 'man', label: 'Man' },
+  { value: 'couple', label: 'Couple' },
+  { value: 'shemale', label: 'Shemale' },
+]
+
+function getAllowedCategoriesForGender(gender: GenderType): AdvisorCategory[] {
+  if (gender === 'male') return ['man', 'couple']
+  if (gender === 'shemale') return ['shemale', 'couple']
+  return ['woman', 'couple']
+}
+
+function getDefaultCategoryForGender(gender: GenderType): AdvisorCategory {
+  return gender === 'male' ? 'man' : gender === 'shemale' ? 'shemale' : 'woman'
+}
+
+function inferGenderFromCategory(category: AdvisorCategory): GenderType | null {
+  if (category === 'man') return 'male'
+  if (category === 'woman') return 'female'
+  if (category === 'shemale') return 'shemale'
+  return null
+}
+
 // Component
 export default function DashboardPage() {
   const router = useRouter()
@@ -308,6 +332,15 @@ export default function DashboardPage() {
       router.replace(target, { scroll: false })
     }
   }, [router])
+
+  useEffect(() => {
+    const allowed = getAllowedCategoriesForGender(form.gender)
+    if (allowed.includes(form.advisor_category)) return
+    setForm((current) => ({
+      ...current,
+      advisor_category: getDefaultCategoryForGender(current.gender),
+    }))
+  }, [form.advisor_category, form.gender])
 
   async function loadData() {
     const supabase = createClient()
@@ -455,6 +488,39 @@ export default function DashboardPage() {
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  function handleGenderChange(nextGender: GenderType) {
+    setForm((current) => {
+      const allowedCategories = getAllowedCategoriesForGender(nextGender)
+      const nextCategory = allowedCategories.includes(current.advisor_category)
+        ? current.advisor_category
+        : getDefaultCategoryForGender(nextGender)
+
+      return {
+        ...current,
+        gender: nextGender,
+        advisor_category: nextCategory,
+      }
+    })
+  }
+
+  function handleAdvisorCategoryChange(nextCategory: AdvisorCategory) {
+    setForm((current) => {
+      const inferredGender = inferGenderFromCategory(nextCategory)
+      if (current.gender || !inferredGender) {
+        return {
+          ...current,
+          advisor_category: nextCategory,
+        }
+      }
+
+      return {
+        ...current,
+        advisor_category: nextCategory,
+        gender: inferredGender,
+      }
+    })
+  }
+
   function toggleMultiField(key: 'date_types' | 'services_tags' | 'availability_slots', value: string) {
     setForm((current) => ({
       ...current,
@@ -471,6 +537,21 @@ export default function DashboardPage() {
         ...current[scope],
         [code]: value,
       },
+    }))
+  }
+
+  function applyAvailability247() {
+    const fullDaySlots = AVAILABILITY_DAYS.map((day) => `${day} - Full day`)
+    setForm((current) => ({
+      ...current,
+      availability_slots: fullDaySlots,
+    }))
+  }
+
+  function clearAvailabilitySlots() {
+    setForm((current) => ({
+      ...current,
+      availability_slots: [],
     }))
   }
 
@@ -680,6 +761,7 @@ export default function DashboardPage() {
   const hasSexCam = form.date_types.includes('SexCam')
   const hasIncall = form.date_types.includes('Incall')
   const hasOutcall = form.date_types.includes('Outcall')
+  const allowedAdvisorCategories = getAllowedCategoriesForGender(form.gender)
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
@@ -1063,12 +1145,22 @@ export default function DashboardPage() {
 
                   <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1.5">Listing category</label>
-                    <select value={form.advisor_category} onChange={(e) => upd('advisor_category', e.target.value as AdvisorCategory)} className="input-dark">
-                      <option value="woman">Woman</option>
-                      <option value="man">Man</option>
-                      <option value="couple">Couple</option>
-                      <option value="shemale">Shemale</option>
+                    <select value={form.advisor_category} onChange={(e) => handleAdvisorCategoryChange(e.target.value as AdvisorCategory)} className="input-dark">
+                      {CATEGORY_OPTIONS.map((option) => (
+                        <option
+                          key={option.value}
+                          value={option.value}
+                          disabled={!allowedAdvisorCategories.includes(option.value)}
+                        >
+                          {allowedAdvisorCategories.includes(option.value)
+                            ? option.label
+                            : `${option.label} (not available for selected gender)`}
+                        </option>
+                      ))}
                     </select>
+                    <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                      Gender controls which listing categories are available.
+                    </p>
                   </div>
 
                   <div>
@@ -1090,7 +1182,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Gender</label>
-                      <select disabled={genderLocked} value={form.gender} onChange={(e) => upd('gender', e.target.value as GenderType)} className="input-dark disabled:opacity-60">
+                      <select disabled={genderLocked} value={form.gender} onChange={(e) => handleGenderChange(e.target.value as GenderType)} className="input-dark disabled:opacity-60">
                         <option value="female">Female</option>
                         <option value="male">Male</option>
                         <option value="shemale">Shemale / Trans</option>
@@ -1265,6 +1357,32 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="space-y-4">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={applyAvailability247}
+                      className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: 'rgba(233,30,140,0.15)',
+                        border: '1px solid rgba(233,30,140,0.45)',
+                        color: '#fff',
+                      }}
+                    >
+                      24/7 (All days Full day)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAvailabilitySlots}
+                      className="rounded-full px-3 py-1.5 text-xs"
+                      style={{
+                        background: 'var(--bg-elevated)',
+                        border: '1px solid var(--border)',
+                        color: '#cbd5e1',
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  </div>
                   {AVAILABILITY_DAYS.map((day) => (
                     <div key={day} className="space-y-2">
                       <p className="text-sm font-medium text-white">{day}</p>
