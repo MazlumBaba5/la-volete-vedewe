@@ -22,6 +22,9 @@ type ChatMessage = {
   sender_profile_id: string
   sender_role: 'guest' | 'advisor'
   body: string
+  attachment_url?: string | null
+  attachment_kind?: 'image' | 'video' | null
+  attachment_cloudinary_id?: string | null
   created_at: string
   read_at: string | null
   optimistic?: boolean
@@ -70,6 +73,7 @@ export default function ChatInbox({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [blockState, setBlockState] = useState<BlockState>({ isBlocked: false, blockedByRole: null, blockedByMe: false })
   const [sending, setSending] = useState(false)
+  const [mediaUploading, setMediaUploading] = useState(false)
   const [actionBusy, setActionBusy] = useState<'deleteConversation' | 'block' | 'unblock' | 'bulkDelete' | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([])
@@ -77,6 +81,7 @@ export default function ChatInbox({
   const messagesContainerRef = useRef<HTMLDivElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const mediaInputRef = useRef<HTMLInputElement | null>(null)
 
   function getInitials(name: string) {
     return name
@@ -329,6 +334,9 @@ export default function ChatInbox({
       sender_profile_id: 'me',
       sender_role: role,
       body: trimmedMessage,
+      attachment_url: null,
+      attachment_kind: null,
+      attachment_cloudinary_id: null,
       created_at: new Date().toISOString(),
       read_at: null,
       optimistic: true,
@@ -384,6 +392,44 @@ export default function ChatInbox({
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault()
     await sendCurrentMessage()
+  }
+
+  async function handleMediaUpload(file: File | null) {
+    if (!file || !selectedConversationId || blockState.isBlocked) return
+
+    setMediaUploading(true)
+    setMessagesError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (message.trim()) {
+        formData.append('caption', message.trim())
+      }
+
+      const res = await fetch(`/api/chat/${selectedConversationId}/media`, {
+        method: 'POST',
+        body: formData,
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to upload media')
+      }
+      setMessage('')
+      await loadMessages(selectedConversationId)
+      await loadConversations({ background: true })
+      requestAnimationFrame(() => {
+        const container = messagesContainerRef.current
+        if (!container) return
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
+      })
+    } catch (error) {
+      setMessagesError(error instanceof Error ? error.message : 'Unable to upload media')
+    } finally {
+      setMediaUploading(false)
+      if (mediaInputRef.current) {
+        mediaInputRef.current.value = ''
+      }
+    }
   }
 
   async function handleDeleteConversation() {
@@ -672,6 +718,26 @@ export default function ChatInbox({
                         border: `1px solid ${mine ? 'rgba(233,30,140,0.28)' : 'var(--border)'}`,
                       }}
                     >
+                      {entry.attachment_url && entry.attachment_kind === 'image' && (
+                        <a href={entry.attachment_url} target="_blank" rel="noreferrer" className="block">
+                          <Image
+                            src={entry.attachment_url}
+                            alt="Chat image"
+                            width={320}
+                            height={240}
+                            className="mb-2 max-h-56 w-auto rounded-xl object-cover"
+                            unoptimized
+                          />
+                        </a>
+                      )}
+                      {entry.attachment_url && entry.attachment_kind === 'video' && (
+                        <video
+                          src={entry.attachment_url}
+                          controls
+                          preload="metadata"
+                          className="mb-2 max-h-56 w-full rounded-xl"
+                        />
+                      )}
                       <p className="text-sm leading-relaxed text-white whitespace-pre-wrap">{entry.body}</p>
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
@@ -714,7 +780,23 @@ export default function ChatInbox({
               className="input-dark resize-none min-h-[96px] sm:min-h-[118px]"
             />
             <div className="flex items-center justify-end gap-3">
-              <button type="submit" disabled={!selectedConversation || sending || !message.trim() || blockState.isBlocked} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
+              <input
+                ref={mediaInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
+                className="hidden"
+                onChange={(e) => void handleMediaUpload(e.currentTarget.files?.[0] ?? null)}
+                disabled={!selectedConversation || mediaUploading || sending || blockState.isBlocked}
+              />
+              <button
+                type="button"
+                onClick={() => mediaInputRef.current?.click()}
+                disabled={!selectedConversation || mediaUploading || sending || blockState.isBlocked}
+                className="btn-outline px-4 py-2 text-sm disabled:opacity-60"
+              >
+                {mediaUploading ? 'Uploading...' : 'Photo / Video'}
+              </button>
+              <button type="submit" disabled={!selectedConversation || sending || mediaUploading || !message.trim() || blockState.isBlocked} className="btn-accent px-5 py-2 text-sm disabled:opacity-60">
                 {sending ? 'Sending...' : 'Send'}
               </button>
             </div>

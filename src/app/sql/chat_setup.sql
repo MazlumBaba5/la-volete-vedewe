@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
   sender_profile_id uuid NOT NULL,
   sender_role text NOT NULL,
   body text NOT NULL,
+  attachment_url text,
+  attachment_kind text,
+  attachment_cloudinary_id text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   read_at timestamp with time zone
 );
@@ -37,6 +40,24 @@ BEGIN
     ALTER TABLE public.chat_messages
       ADD CONSTRAINT chat_messages_sender_role_check
       CHECK (sender_role IN ('advisor', 'guest'));
+  END IF;
+END $$;
+
+ALTER TABLE public.chat_messages
+  ADD COLUMN IF NOT EXISTS attachment_url text,
+  ADD COLUMN IF NOT EXISTS attachment_kind text,
+  ADD COLUMN IF NOT EXISTS attachment_cloudinary_id text;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'chat_messages_attachment_kind_check'
+  ) THEN
+    ALTER TABLE public.chat_messages
+      ADD CONSTRAINT chat_messages_attachment_kind_check
+      CHECK (attachment_kind IS NULL OR attachment_kind IN ('image', 'video'));
   END IF;
 END $$;
 

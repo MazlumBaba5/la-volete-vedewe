@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { refreshConversationSummary, getActor, validateConversationAccess } from '@/app/api/chat/_helpers'
+import { isMissingColumnError } from '@/app/api/chat/_helpers'
+import cloudinary from '@/lib/cloudinary/config'
 
 export async function POST(
   req: Request,
@@ -24,18 +26,51 @@ export async function POST(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    const { data: ownedMessages, error: ownedError } = await admin
+    const withAttachment = await admin
       .from('chat_messages')
-      .select('id')
+      .select('id, attachment_cloudinary_id, attachment_kind')
       .eq('conversation_id', conversationId)
       .eq('sender_profile_id', user.id)
       .in('id', messageIds)
 
-    if (ownedError) {
-      throw ownedError
-    }
+    let ownedRows: Array<{
+      id: string
+      attachment_cloudinary_id: string | null
+      attachment_kind: 'image' | 'video' | null
+    }> = []
 
-    const ownedIds = (ownedMessages ?? []).map((item) => item.id as string)
+    if (withAttachment.error) {
+      if (
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_cloudinary_id') ||
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_kind')
+      ) {
+        const legacy = await admin
+          .from('chat_messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('sender_profile_id', user.id)
+          .in('id', messageIds)
+
+        if (legacy.error) {
+          throw legacy.error
+        }
+
+        ownedRows = ((legacy.data ?? []) as Array<{ id: string }>).map((entry) => ({
+          id: entry.id,
+          attachment_cloudinary_id: null,
+          attachment_kind: null,
+        }))
+      } else {
+        throw withAttachment.error
+      }
+    } else {
+      ownedRows = (withAttachment.data ?? []) as Array<{
+        id: string
+        attachment_cloudinary_id: string | null
+        attachment_kind: 'image' | 'video' | null
+      }>
+    }
+    const ownedIds = ownedRows.map((item) => item.id)
     if (ownedIds.length === 0) {
       return NextResponse.json({ deletedCount: 0, ignoredCount: messageIds.length })
     }
@@ -49,6 +84,15 @@ export async function POST(
 
     if (deleteError) {
       throw deleteError
+    }
+
+    for (const entry of ownedRows) {
+      if (!entry.attachment_cloudinary_id) continue
+      try {
+        await cloudinary.uploader.destroy(entry.attachment_cloudinary_id, {
+          resource_type: entry.attachment_kind === 'video' ? 'video' : 'image',
+        })
+      } catch {}
     }
 
     await refreshConversationSummary(conversationId, conversation.created_at)

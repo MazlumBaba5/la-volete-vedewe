@@ -40,6 +40,15 @@ export function isMissingTableError(error: DbErrorLike | null | undefined, table
   return error.message?.includes(`relation "${tableName}" does not exist`) ?? false
 }
 
+export function isMissingColumnError(error: DbErrorLike | null | undefined, tableName: string, columnName: string) {
+  if (!error) return false
+  if (error.code === '42703') return true
+  return (
+    error.message?.includes(`column ${tableName}.${columnName} does not exist`) ||
+    error.message?.includes(`column "${columnName}" does not exist`)
+  ) ?? false
+}
+
 export async function validateConversationAccess(conversationId: string, userId: string, role: ChatRole) {
   const admin = createAdminClient()
   const { data: conversation, error } = await admin

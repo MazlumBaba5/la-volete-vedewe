@@ -1,0 +1,11 @@
+Per una chat v1 testabile, sì: la chat ora è completa e usabile.
+
+Per un lancio pubblico, mancano ancora alcuni punti importanti:
+
+applicare gating reale piani (Gold client, Premium/Diamond advisor) al posto del test mode
+verificare/rafforzare RLS anche su nuove entità (chat_blocks) con policy complete per write/delete (oggi molte operazioni passano via server admin, ok, ma va auditato)
+rate limit anti-spam lato invio messaggi
+moderazione minima (report, blocklist review in admin)
+retention/cleanup (es. media, conversazioni vecchie)
+test e2e su edge case: block/unblock, delete multiplo, delete chat con unread, cross-device realtime
+Quindi: base ottima, ma prima del “go live” farei un pass di hardening. Se vuoi, nel prossimo step te lo chiudo io con una checklist “release-ready” e implementiamo direttamente i punti critici uno per uno.

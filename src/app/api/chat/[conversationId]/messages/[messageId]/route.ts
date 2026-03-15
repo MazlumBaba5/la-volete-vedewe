@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getActor, refreshConversationSummary, validateConversationAccess } from '@/app/api/chat/_helpers'
+import { isMissingColumnError } from '@/app/api/chat/_helpers'
+import cloudinary from '@/lib/cloudinary/config'
 
 export async function DELETE(
   _req: Request,
@@ -17,18 +19,55 @@ export async function DELETE(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    const { data: message, error: messageError } = await admin
+    let currentMessage: {
+      id: string
+      sender_profile_id: string
+      attachment_cloudinary_id: string | null
+      attachment_kind: 'image' | 'video' | null
+    } | null = null
+
+    const withAttachment = await admin
       .from('chat_messages')
-      .select('id, sender_profile_id')
+      .select('id, sender_profile_id, attachment_cloudinary_id, attachment_kind')
       .eq('id', messageId)
       .eq('conversation_id', conversationId)
       .maybeSingle()
 
-    if (messageError) {
-      throw messageError
+    if (withAttachment.error) {
+      if (
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_cloudinary_id') ||
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_kind')
+      ) {
+        const legacy = await admin
+          .from('chat_messages')
+          .select('id, sender_profile_id')
+          .eq('id', messageId)
+          .eq('conversation_id', conversationId)
+          .maybeSingle()
+
+        if (legacy.error) {
+          throw legacy.error
+        }
+
+        currentMessage = (legacy.data as { id: string; sender_profile_id: string } | null)
+          ? {
+              ...(legacy.data as { id: string; sender_profile_id: string }),
+              attachment_cloudinary_id: null,
+              attachment_kind: null,
+            }
+          : null
+      } else {
+        throw withAttachment.error
+      }
+    } else {
+      currentMessage = withAttachment.data as {
+        id: string
+        sender_profile_id: string
+        attachment_cloudinary_id: string | null
+        attachment_kind: 'image' | 'video' | null
+      } | null
     }
 
-    const currentMessage = message as { id: string; sender_profile_id: string } | null
     if (!currentMessage?.id) {
       return NextResponse.json({ error: 'Message not found' }, { status: 404 })
     }
@@ -45,6 +84,14 @@ export async function DELETE(
 
     if (deleteError) {
       throw deleteError
+    }
+
+    if (currentMessage.attachment_cloudinary_id) {
+      try {
+        await cloudinary.uploader.destroy(currentMessage.attachment_cloudinary_id, {
+          resource_type: currentMessage.attachment_kind === 'video' ? 'video' : 'image',
+        })
+      } catch {}
     }
 
     await refreshConversationSummary(conversationId, conversation.created_at)

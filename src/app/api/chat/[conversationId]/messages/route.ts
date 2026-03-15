@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getActor, getConversationBlockState, validateConversationAccess } from '@/app/api/chat/_helpers'
+import { getActor, getConversationBlockState, isMissingColumnError, validateConversationAccess } from '@/app/api/chat/_helpers'
 
 export async function GET(
   _req: Request,
@@ -17,14 +17,39 @@ export async function GET(
       return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    const { data: messages, error } = await admin
+    let messages: Array<Record<string, unknown>> = []
+    const withAttachment = await admin
       .from('chat_messages')
-      .select('id, sender_profile_id, sender_role, body, created_at, read_at')
+      .select('id, sender_profile_id, sender_role, body, attachment_url, attachment_kind, attachment_cloudinary_id, created_at, read_at')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
 
-    if (error) {
-      throw error
+    if (withAttachment.error) {
+      if (
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_url') ||
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_kind') ||
+        isMissingColumnError(withAttachment.error, 'chat_messages', 'attachment_cloudinary_id')
+      ) {
+        const legacy = await admin
+          .from('chat_messages')
+          .select('id, sender_profile_id, sender_role, body, created_at, read_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+
+        if (legacy.error) {
+          throw legacy.error
+        }
+        messages = ((legacy.data ?? []) as Array<Record<string, unknown>>).map((entry) => ({
+          ...entry,
+          attachment_url: null,
+          attachment_kind: null,
+          attachment_cloudinary_id: null,
+        }))
+      } else {
+        throw withAttachment.error
+      }
+    } else {
+      messages = (withAttachment.data ?? []) as Array<Record<string, unknown>>
     }
 
     const unreadSenderRole = role === 'guest' ? 'advisor' : 'guest'
@@ -39,7 +64,7 @@ export async function GET(
 
     return NextResponse.json({
       conversationId,
-      messages: messages ?? [],
+      messages,
       block: {
         isBlocked: blockState.isBlocked,
         blockedByRole: blockState.block?.blocked_by_role ?? null,
@@ -95,10 +120,37 @@ export async function POST(
         sender_role: role,
         body: text,
       }])
-      .select('id, sender_profile_id, sender_role, body, created_at, read_at')
+      .select('id, sender_profile_id, sender_role, body, attachment_url, attachment_kind, attachment_cloudinary_id, created_at, read_at')
       .single()
 
     if (error) {
+      if (
+        isMissingColumnError(error, 'chat_messages', 'attachment_url') ||
+        isMissingColumnError(error, 'chat_messages', 'attachment_kind') ||
+        isMissingColumnError(error, 'chat_messages', 'attachment_cloudinary_id')
+      ) {
+        const legacyInsert = await admin
+          .from('chat_messages')
+          .insert([{
+            conversation_id: conversationId,
+            sender_profile_id: user.id,
+            sender_role: role,
+            body: text,
+          }])
+          .select('id, sender_profile_id, sender_role, body, created_at, read_at')
+          .single()
+
+        if (legacyInsert.error) {
+          throw legacyInsert.error
+        }
+
+        return NextResponse.json({
+          ...(legacyInsert.data as Record<string, unknown>),
+          attachment_url: null,
+          attachment_kind: null,
+          attachment_cloudinary_id: null,
+        }, { status: 201 })
+      }
       throw error
     }
 
