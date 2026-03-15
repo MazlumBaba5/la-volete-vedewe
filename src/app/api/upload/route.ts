@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import cloudinary from '@/lib/cloudinary/config'
 import { NextRequest, NextResponse } from 'next/server'
+import { invalidateMarketplaceCache } from '@/lib/marketplace-cache'
 
 export async function POST(req: NextRequest) {
     try {
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Failed to save photo' }, { status: 500 })
         }
 
+        invalidateMarketplaceCache()
+
         return NextResponse.json({
             id: media.id,
             url: media.url,
@@ -128,6 +131,8 @@ export async function DELETE(req: NextRequest) {
             }
         }
 
+        invalidateMarketplaceCache()
+
         return NextResponse.json({ success: true })
 
     } catch (err) {
@@ -154,6 +159,8 @@ export async function PATCH(req: NextRequest) {
 
         await supabase.from('advisor_media').update({ is_cover: false }).eq('advisor_id', advisor.id)
         await supabase.from('advisor_media').update({ is_cover: true }).eq('id', mediaId).eq('advisor_id', advisor.id)
+
+        invalidateMarketplaceCache()
 
         return NextResponse.json({ success: true })
 

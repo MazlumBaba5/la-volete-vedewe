@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { ADMIN_SESSION_COOKIE, verifyAdminSession } from '@/lib/admin-auth'
 import { createAdminClient } from '@/lib/supabase/server'
+import { invalidateMarketplaceCache } from '@/lib/marketplace-cache'
 
 function isMissingReviewedAtColumn(message?: string) {
   return Boolean(message?.includes('column advisors.verification_reviewed_at does not exist'))
@@ -63,6 +64,7 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    invalidateMarketplaceCache()
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

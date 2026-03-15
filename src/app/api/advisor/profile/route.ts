@@ -10,6 +10,7 @@ import {
   sanitizeServices,
 } from '@/lib/advisor-profile-options'
 import { findDutchCity } from '@/lib/netherlands-cities'
+import { invalidateMarketplaceCache } from '@/lib/marketplace-cache'
 
 const ALLOWED_FIELDS = [
   'name', 'bio', 'city', 'region', 'advisor_category', 'age', 'gender',
@@ -133,6 +134,7 @@ export async function POST() {
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    invalidateMarketplaceCache()
     return NextResponse.json({ ...data, review_count: 0, review_average: 0 }, { status: 201 })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
@@ -293,6 +295,7 @@ export async function PATCH(req: Request) {
       .eq('profile_id', user.id)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    invalidateMarketplaceCache()
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })

@@ -4,6 +4,7 @@ import { toPublicRates } from '@/lib/advisor-profile-options'
 import { isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 import { findDutchCity } from '@/lib/netherlands-cities'
 import type { Profile, ProfilePhoto, Category, City } from '@/types'
+import { unstable_cache } from 'next/cache'
 
 // Selects advisor columns + their media via the FK relationship.
 // PostgREST resolves advisor_media automatically via the FK on advisor_id.
@@ -51,6 +52,7 @@ const PUBLIC_COLUMNS = `
 const TIER_ORDER: Record<string, number> = { diamond: 0, premium: 1, free: 2 }
 const FETCHABLE_STATUSES = ['active', 'pending'] as const
 const VERIFICATION_GRANDFATHER_DATE = Date.parse('2026-03-13T00:00:00Z')
+const MARKETPLACE_CACHE_SECONDS = 60
 
 interface MediaRow {
   id: string
@@ -178,7 +180,7 @@ async function enrichWithSubscriptions(
   return rows.map((r) => mapRow(r, tierMap.get(r.id as string)))
 }
 
-export async function getAllProfiles(): Promise<Profile[]> {
+async function getAllProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   let rows: Record<string, unknown>[]
   try {
@@ -197,7 +199,16 @@ export async function getAllProfiles(): Promise<Profile[]> {
   return sortByTier(profiles)
 }
 
-export async function getProfileBySlug(slug: string): Promise<Profile | null> {
+const getAllProfilesCached = unstable_cache(getAllProfilesRaw, ['advisors:all'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:profiles'],
+})
+
+export async function getAllProfiles(): Promise<Profile[]> {
+  return getAllProfilesCached()
+}
+
+async function getProfileBySlugRaw(slug: string): Promise<Profile | null> {
   const supabase = createAdminClient()
   let rows: Record<string, unknown>[]
   try {
@@ -225,7 +236,16 @@ export async function getProfileBySlug(slug: string): Promise<Profile | null> {
   return mapRow(row, isSubscriptionCurrentlyActive(subs) ? subs?.tier : undefined)
 }
 
-export async function getFeaturedProfiles(): Promise<Profile[]> {
+export async function getProfileBySlug(slug: string): Promise<Profile | null> {
+  const cachedBySlug = unstable_cache(
+    async () => getProfileBySlugRaw(slug),
+    ['advisors:by-slug', slug],
+    { revalidate: MARKETPLACE_CACHE_SECONDS, tags: [`marketplace:profile:${slug}`] }
+  )
+  return cachedBySlug()
+}
+
+async function getFeaturedProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   const nowIso = new Date().toISOString()
 
@@ -282,7 +302,16 @@ export async function getFeaturedProfiles(): Promise<Profile[]> {
   }
 }
 
-export async function getRecentProfiles(): Promise<Profile[]> {
+const getFeaturedProfilesCached = unstable_cache(getFeaturedProfilesRaw, ['advisors:featured'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:featured'],
+})
+
+export async function getFeaturedProfiles(): Promise<Profile[]> {
+  return getFeaturedProfilesCached()
+}
+
+async function getRecentProfilesRaw(): Promise<Profile[]> {
   const supabase = createAdminClient()
   try {
     const rows = await selectAdvisorRows((columns) =>
@@ -298,6 +327,15 @@ export async function getRecentProfiles(): Promise<Profile[]> {
     console.error('[getRecentProfiles]', (error as { message?: string }).message)
     return []
   }
+}
+
+const getRecentProfilesCached = unstable_cache(getRecentProfilesRaw, ['advisors:recent'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:recent'],
+})
+
+export async function getRecentProfiles(): Promise<Profile[]> {
+  return getRecentProfilesCached()
 }
 
 export async function searchProfiles(filters: {
@@ -345,7 +383,7 @@ export async function searchProfiles(filters: {
   return result
 }
 
-export async function getCategories(): Promise<Category[]> {
+async function getCategoriesRaw(): Promise<Category[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('categories')
@@ -355,11 +393,20 @@ export async function getCategories(): Promise<Category[]> {
   return data as Category[]
 }
 
+const getCategoriesCached = unstable_cache(getCategoriesRaw, ['advisors:categories'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS * 5,
+  tags: ['marketplace:categories'],
+})
+
+export async function getCategories(): Promise<Category[]> {
+  return getCategoriesCached()
+}
+
 /**
  * Compute city counts directly from the advisors table so the data is always
  * fresh and never depends on a separately-maintained cities table.
  */
-export async function getCities(): Promise<City[]> {
+async function getCitiesRaw(): Promise<City[]> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('advisors')
@@ -392,6 +439,15 @@ export async function getCities(): Promise<City[]> {
     .sort((a, b) => b.count - a.count)
 }
 
+const getCitiesCached = unstable_cache(getCitiesRaw, ['advisors:cities'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:cities'],
+})
+
+export async function getCities(): Promise<City[]> {
+  return getCitiesCached()
+}
+
 export async function incrementViews(slug: string): Promise<void> {
   const supabase = createAdminClient()
   await supabase.rpc('increment_advisor_views', { advisor_slug: slug }).throwOnError()
@@ -402,7 +458,7 @@ export interface SiteStats {
   totalCities: number
 }
 
-export async function getSiteStats(): Promise<SiteStats> {
+async function getSiteStatsRaw(): Promise<SiteStats> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('advisors')
@@ -426,4 +482,13 @@ export async function getSiteStats(): Promise<SiteStats> {
     totalAdvisors: publicRows.length,
     totalCities: cityCount,
   }
+}
+
+const getSiteStatsCached = unstable_cache(getSiteStatsRaw, ['advisors:stats'], {
+  revalidate: MARKETPLACE_CACHE_SECONDS,
+  tags: ['marketplace:stats'],
+})
+
+export async function getSiteStats(): Promise<SiteStats> {
+  return getSiteStatsCached()
 }
