@@ -53,6 +53,11 @@ const TYPE_DATE_LABELS: Record<string, string> = {
   SexCam: 'SexCam',
 };
 
+const MIN_ADVISOR_PHOTOS = 3;
+const MAX_ADVISOR_PHOTOS = 25;
+const MAX_ADVISOR_PHOTO_SIZE_BYTES = 10 * 1024 * 1024;
+const ALLOWED_ADVISOR_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 function toggleValue(values: string[], value: string) {
   return values.includes(value)
     ? values.filter((item) => item !== value)
@@ -163,6 +168,7 @@ export default function RegisterPage() {
   });
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [advisorPhotos, setAdvisorPhotos] = useState<File[]>([]);
 
   const hasBdsm = form.dateTypes.includes('Bdsm');
   const hasMassage = form.dateTypes.includes('Massage');
@@ -197,6 +203,48 @@ export default function RegisterPage() {
     updateField('availabilitySlots', []);
   }
 
+  function handleAdvisorPhotoSelection(fileList: FileList | null) {
+    if (!fileList) return;
+
+    const nextPhotos = [...advisorPhotos];
+    let nextError = '';
+
+    for (const file of Array.from(fileList)) {
+      if (!ALLOWED_ADVISOR_PHOTO_TYPES.has(file.type)) {
+        if (!nextError) nextError = 'Only JPG, PNG and WebP photos are allowed.';
+        continue;
+      }
+
+      if (file.size > MAX_ADVISOR_PHOTO_SIZE_BYTES) {
+        if (!nextError) nextError = 'Each photo must be 10MB or less.';
+        continue;
+      }
+
+      const isDuplicate = nextPhotos.some((existing) =>
+        existing.name === file.name &&
+        existing.size === file.size &&
+        existing.lastModified === file.lastModified
+      );
+
+      if (isDuplicate) continue;
+
+      if (nextPhotos.length >= MAX_ADVISOR_PHOTOS) {
+        if (!nextError) nextError = `You can upload up to ${MAX_ADVISOR_PHOTOS} photos.`;
+        break;
+      }
+
+      nextPhotos.push(file);
+    }
+
+    setAdvisorPhotos(nextPhotos);
+    setError(nextError);
+  }
+
+  function removeAdvisorPhoto(index: number) {
+    setAdvisorPhotos((current) => current.filter((_, idx) => idx !== index));
+    setError('');
+  }
+
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     setStep(2);
@@ -207,31 +255,52 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email,
-          password: form.password,
-          role,
-          name: form.name,
-          advisorCategory: categoryFromGender(form.gender),
-          age: form.age ? Number(form.age) : null,
-          ethnicity: form.ethnicity,
-          gender: form.gender,
-          city: form.city,
-          region: form.region,
-          bio: form.bio,
-          sexualOrientation: form.sexualOrientation,
-          dateTypes: form.dateTypes,
-          servicesTags: form.servicesTags,
-          incallRates: buildRatesFromForm(form.incallRates, 'incall'),
-          outcallRates: buildRatesFromForm(form.outcallRates, 'outcall'),
-          availabilitySlots: form.availabilitySlots,
-          phone: form.phone,
-          whatsappAvailable: form.whatsappAvailable,
-        }),
-      });
+      const payload = {
+        email: form.email,
+        password: form.password,
+        role,
+        name: form.name,
+        advisorCategory: categoryFromGender(form.gender),
+        age: form.age ? Number(form.age) : null,
+        ethnicity: form.ethnicity,
+        gender: form.gender,
+        city: form.city,
+        region: form.region,
+        bio: form.bio,
+        sexualOrientation: form.sexualOrientation,
+        dateTypes: form.dateTypes,
+        servicesTags: form.servicesTags,
+        incallRates: buildRatesFromForm(form.incallRates, 'incall'),
+        outcallRates: buildRatesFromForm(form.outcallRates, 'outcall'),
+        availabilitySlots: form.availabilitySlots,
+        phone: form.phone,
+        whatsappAvailable: form.whatsappAvailable,
+      };
+
+      let res: Response;
+      if (role === 'advisor') {
+        if (advisorPhotos.length < MIN_ADVISOR_PHOTOS) {
+          setError(`Upload at least ${MIN_ADVISOR_PHOTOS} photos before completing registration.`);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('payload', JSON.stringify(payload));
+        for (const photo of advisorPhotos) {
+          formData.append('photos', photo);
+        }
+
+        res = await fetch('/api/auth/register', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
 
       const json = await res.json();
       if (!res.ok || json?.error) {
@@ -502,6 +571,70 @@ export default function RegisterPage() {
               {hasSexCam && <ServiceSection title="Virtual sex services" items={VIRTUAL_SERVICE_OPTIONS} selected={form.servicesTags} onToggle={(value) => toggleMultiField('servicesTags', value)} />}
             </div>
 
+            <div className="rounded-xl p-6 space-y-4" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Profile photos (required)</h3>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Upload at least 3 photos to complete advisor registration. JPG, PNG or WebP, max 10MB each.
+                  </p>
+                </div>
+                <span className="text-xs rounded-full px-2 py-1"
+                  style={{ background: 'rgba(233,30,140,0.15)', border: '1px solid rgba(233,30,140,0.35)', color: '#f9a8d4' }}>
+                  {advisorPhotos.length}/{MAX_ADVISOR_PHOTOS}
+                </span>
+              </div>
+
+              <label
+                className="block rounded-xl border-2 border-dashed px-5 py-6 cursor-pointer text-center"
+                style={{ borderColor: 'rgba(233,30,140,0.35)', background: 'rgba(233,30,140,0.05)' }}
+              >
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    handleAdvisorPhotoSelection(e.target.files);
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <p className="text-sm font-semibold text-white">Click to upload photos</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                  This is a mandatory step before registration can be completed.
+                </p>
+              </label>
+
+              {advisorPhotos.length > 0 && (
+                <div className="space-y-2">
+                  {advisorPhotos.map((photo, index) => (
+                    <div
+                      key={`${photo.name}-${photo.size}-${photo.lastModified}`}
+                      className="flex items-center justify-between gap-2 rounded-lg px-3 py-2"
+                      style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+                    >
+                      <p className="text-xs text-gray-200 truncate">{photo.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeAdvisorPhoto(index)}
+                        className="text-xs px-2 py-1 rounded-md"
+                        style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.35)' }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {advisorPhotos.length < MIN_ADVISOR_PHOTOS && (
+                <p className="text-xs px-3 py-2 rounded-lg"
+                  style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  Upload at least {MIN_ADVISOR_PHOTOS} photos to continue.
+                </p>
+              )}
+            </div>
+
             <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
               <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide">Availability</h3>
               <div className="flex items-center gap-2 flex-wrap">
@@ -569,8 +702,8 @@ export default function RegisterPage() {
 
             <div className="flex gap-3">
               <button type="button" onClick={() => setStep(1)} className="btn-ghost flex-1 py-2.5 text-sm">← Back</button>
-              <button type="submit" disabled={loading} className="btn-accent flex-1 py-2.5 text-sm">
-                {loading ? 'Creating account…' : 'Complete registration'}
+              <button type="submit" disabled={loading || advisorPhotos.length < MIN_ADVISOR_PHOTOS} className="btn-accent flex-1 py-2.5 text-sm">
+                {loading ? 'Creating account…' : advisorPhotos.length < MIN_ADVISOR_PHOTOS ? 'Upload at least 3 photos' : 'Complete registration'}
               </button>
             </div>
 
