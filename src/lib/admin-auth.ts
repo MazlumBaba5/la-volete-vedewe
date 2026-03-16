@@ -7,8 +7,26 @@ type SignedPayload = {
   [key: string]: unknown
 }
 
+type AdminCredentials = {
+  username: string
+  password: string
+}
+
+function getRequiredEnv(name: 'LVVD_ADMIN_SESSION_SECRET' | 'LVVD_ADMIN_USERNAME' | 'LVVD_ADMIN_PASSWORD') {
+  const value = process.env[name]?.trim()
+  return value ? value : null
+}
+
 function getSecret() {
-  return process.env.LVVD_ADMIN_SESSION_SECRET || 'lvvd-admin-dev-secret'
+  return getRequiredEnv('LVVD_ADMIN_SESSION_SECRET')
+}
+
+export function isAdminAuthConfigured() {
+  return Boolean(
+    getRequiredEnv('LVVD_ADMIN_SESSION_SECRET') &&
+    getRequiredEnv('LVVD_ADMIN_USERNAME') &&
+    getRequiredEnv('LVVD_ADMIN_PASSWORD')
+  )
 }
 
 function toBase64Url(value: string) {
@@ -20,12 +38,16 @@ function fromBase64Url(value: string) {
 }
 
 function signValue(value: string) {
-  return crypto.createHmac('sha256', getSecret()).update(value).digest('base64url')
+  const secret = getSecret()
+  if (!secret) return null
+  return crypto.createHmac('sha256', secret).update(value).digest('base64url')
 }
 
 function signPayload(payload: SignedPayload) {
   const encoded = toBase64Url(JSON.stringify(payload))
-  return `${encoded}.${signValue(encoded)}`
+  const signature = signValue(encoded)
+  if (!signature) return null
+  return `${encoded}.${signature}`
 }
 
 function verifySignedPayload(token?: string | null): SignedPayload | null {
@@ -34,24 +56,32 @@ function verifySignedPayload(token?: string | null): SignedPayload | null {
   if (!encoded || !signature) return null
 
   const expected = signValue(encoded)
+  if (!expected) return null
   if (signature.length !== expected.length) return null
   const valid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
   if (!valid) return null
 
-  const payload = JSON.parse(fromBase64Url(encoded)) as SignedPayload
-  if (payload.exp < Date.now()) return null
-  return payload
+  try {
+    const payload = JSON.parse(fromBase64Url(encoded)) as SignedPayload
+    if (payload.exp < Date.now()) return null
+    return payload
+  } catch {
+    return null
+  }
 }
 
 export function createCaptchaChallenge() {
+  if (!getSecret()) return null
   const left = Math.floor(Math.random() * 7) + 2
   const right = Math.floor(Math.random() * 8) + 1
+  const token = signPayload({
+    answer: String(left + right),
+    exp: Date.now() + 10 * 60 * 1000,
+  })
+  if (!token) return null
   return {
     question: `${left} + ${right} = ?`,
-    token: signPayload({
-      answer: String(left + right),
-      exp: Date.now() + 10 * 60 * 1000,
-    }),
+    token,
   }
 }
 
@@ -61,11 +91,11 @@ export function verifyCaptchaChallenge(token: string, answer: string) {
   return String(payload.answer) === answer.trim()
 }
 
-export function getAdminCredentials() {
-  return {
-    username: process.env.LVVD_ADMIN_USERNAME || 'lvvdadmin',
-    password: process.env.LVVD_ADMIN_PASSWORD || 'lvvdteam2026',
-  }
+export function getAdminCredentials(): AdminCredentials | null {
+  const username = getRequiredEnv('LVVD_ADMIN_USERNAME')
+  const password = getRequiredEnv('LVVD_ADMIN_PASSWORD')
+  if (!username || !password) return null
+  return { username, password }
 }
 
 export function createAdminSession(username: string) {

@@ -3,11 +3,16 @@ import {
   ADMIN_SESSION_COOKIE,
   createAdminSession,
   getAdminCredentials,
+  isAdminAuthConfigured,
   verifyCaptchaChallenge,
 } from '@/lib/admin-auth'
 
 export async function POST(req: Request) {
   try {
+    if (!isAdminAuthConfigured()) {
+      return NextResponse.json({ error: 'Admin auth is not configured.' }, { status: 503 })
+    }
+
     const body = (await req.json()) as {
       username?: string
       password?: string
@@ -24,12 +29,21 @@ export async function POST(req: Request) {
     }
 
     const credentials = getAdminCredentials()
+    if (!credentials) {
+      return NextResponse.json({ error: 'Admin auth is not configured.' }, { status: 503 })
+    }
+
     if (body.username !== credentials.username || body.password !== credentials.password) {
       return NextResponse.json({ error: 'Invalid admin credentials.' }, { status: 401 })
     }
 
+    const sessionToken = createAdminSession(body.username)
+    if (!sessionToken) {
+      return NextResponse.json({ error: 'Admin auth is not configured.' }, { status: 503 })
+    }
+
     const response = NextResponse.json({ ok: true })
-    response.cookies.set(ADMIN_SESSION_COOKIE, createAdminSession(body.username), {
+    response.cookies.set(ADMIN_SESSION_COOKIE, sessionToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
