@@ -247,13 +247,20 @@ export default function ProfileDetail({ profile, related }: Props) {
               {/* Main photo */}
               <div
                 className="relative rounded-2xl overflow-hidden"
-                style={{ paddingBottom: '66%' }}
+                style={{ paddingBottom: '66%', background: '#050816' }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={selectedPhoto?.url}
                   alt={profile.name}
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-35"
+                  aria-hidden="true"
+                />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedPhoto?.url}
+                  alt={profile.name}
+                  className="absolute inset-0 w-full h-full object-contain"
                 />
                 {profile.subscriptionLevel !== 'free' && (
                   <div className="absolute top-4 left-4">
@@ -287,7 +294,8 @@ export default function ProfileDetail({ profile, related }: Props) {
                       <img
                         src={photo.url}
                         alt=""
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
+                        style={{ background: '#050816' }}
                       />
                     </button>
                   ))}
@@ -629,9 +637,9 @@ export default function ProfileDetail({ profile, related }: Props) {
               <div>
                 <h3 className="font-semibold text-gray-200 mb-3 text-sm">Rates</h3>
                 <div className="space-y-2">
-                  {profile.rates.map((rate: typeof profile.rates[0]) => (
+                  {profile.rates.map((rate: typeof profile.rates[0], index: number) => (
                     <div
-                      key={rate.duration}
+                      key={`${rate.duration}-${rate.label}-${rate.price}-${index}`}
                       className="flex items-center justify-between px-3 py-2 rounded-lg text-sm"
                       style={{ background: 'var(--bg-elevated)' }}
                     >
