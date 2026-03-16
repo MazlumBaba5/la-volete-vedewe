@@ -20,6 +20,10 @@ import {
   SEX_ORIENTATION_OPTIONS,
   VIRTUAL_SERVICE_OPTIONS,
 } from '@/lib/advisor-profile-options';
+import {
+  getBlockedEmailRegistrationError,
+  normalizeEmailAddress,
+} from '@/lib/email-domain-policy';
 
 type Role = 'guest' | 'advisor';
 type GenderType = 'female' | 'male' | 'shemale' | 'couple';
@@ -247,16 +251,33 @@ export default function RegisterPage() {
 
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
+    const normalizedEmail = normalizeEmailAddress(form.email);
+    const blockedEmailError = getBlockedEmailRegistrationError(normalizedEmail);
+    if (blockedEmailError) {
+      setError(blockedEmailError);
+      return;
+    }
+
     setStep(2);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    const normalizedEmail = normalizeEmailAddress(form.email);
+    const blockedEmailError = getBlockedEmailRegistrationError(normalizedEmail);
+    if (blockedEmailError) {
+      setError(blockedEmailError);
+      return;
+    }
+
+    setLoading(true);
     try {
       const payload = {
-        email: form.email,
+        email: normalizedEmail,
         password: form.password,
         role,
         name: form.name,
@@ -308,7 +329,7 @@ export default function RegisterPage() {
       } else {
         const supabase = createClient();
         const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: form.email,
+          email: normalizedEmail,
           password: form.password,
         });
         if (signInError) {
@@ -447,7 +468,7 @@ export default function RegisterPage() {
               {role === 'advisor' ? 'Next →' : loading ? 'Creating account…' : 'Create account'}
             </button>
 
-            {error && role === 'guest' && (
+            {error && (
               <p className="text-xs text-center px-3 py-2 rounded-lg" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>
                 {error}
               </p>

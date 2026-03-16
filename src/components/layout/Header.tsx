@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
@@ -22,6 +22,8 @@ export default function Header() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [authLoaded, setAuthLoaded] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [desktopExpanded, setDesktopExpanded] = useState<string | null>(null);
+  const desktopNavRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -65,6 +67,33 @@ export default function Header() {
 
     return () => window.clearInterval(id);
   }, [userRole]);
+
+  useEffect(() => {
+    if (!desktopExpanded) return;
+
+    const handleOutsideClick = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (target && desktopNavRef.current && !desktopNavRef.current.contains(target)) {
+        setDesktopExpanded(null);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDesktopExpanded(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [desktopExpanded]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -202,23 +231,87 @@ export default function Header() {
         style={{ borderColor: 'var(--border)' }}
       >
         <div
+          ref={desktopNavRef}
           className="flex items-center px-4 lg:px-8 gap-2 py-2"
           style={{ maxWidth: 1400, margin: '0 auto' }}
         >
-          {LISTING_CATEGORY_GROUPS.map((group) => (
-            <div key={group.label} className="group relative">
-              <Link
-                href={`/listings?category=${group.category}`}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
-              >
-                <span>{group.icon}</span>
-                {group.label}
-                <svg className="h-4 w-4 text-gray-500 transition-transform group-hover:rotate-180 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </Link>
+          {LISTING_CATEGORY_GROUPS.map((group) => {
+            const isExpanded = desktopExpanded === group.label;
 
-              <div className="pointer-events-none absolute left-0 top-full z-40 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+            return (
+              <div key={group.label} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setDesktopExpanded(isExpanded ? null : group.label)}
+                  className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
+                  aria-expanded={isExpanded}
+                  aria-haspopup="menu"
+                >
+                  <span>{group.icon}</span>
+                  {group.label}
+                  <svg className={`h-4 w-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180 text-gray-300' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isExpanded && (
+                  <div className="absolute left-0 top-full z-40 pt-2">
+                    <div
+                      className="min-w-[230px] rounded-2xl p-2"
+                      style={{
+                        background: 'rgba(19, 19, 31, 0.98)',
+                        border: '1px solid var(--border)',
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
+                      }}
+                    >
+                      <Link
+                        href={`/listings?category=${group.category}`}
+                        onClick={() => setDesktopExpanded(null)}
+                        className="mb-1 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-white"
+                        style={{ background: 'rgba(233,30,140,0.16)' }}
+                      >
+                        <span>View all {group.label}</span>
+                        <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: '#f472b6' }}>
+                          {group.label}
+                        </span>
+                      </Link>
+                      {SERVICE_LINKS.map((item) => (
+                        <Link
+                          key={`${group.label}-${item.label}`}
+                          href={`/listings?category=${group.category}&services=${encodeURIComponent(item.service)}`}
+                          onClick={() => setDesktopExpanded(null)}
+                          className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
+                        >
+                          <span>{item.label}</span>
+                          <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                            {group.label}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setDesktopExpanded(desktopExpanded === MASSAGE_GROUP.label ? null : MASSAGE_GROUP.label)}
+              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
+              aria-expanded={desktopExpanded === MASSAGE_GROUP.label}
+              aria-haspopup="menu"
+            >
+              <span>{MASSAGE_GROUP.icon}</span>
+              {MASSAGE_GROUP.label}
+              <svg className={`h-4 w-4 text-gray-500 transition-transform ${desktopExpanded === MASSAGE_GROUP.label ? 'rotate-180 text-gray-300' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {desktopExpanded === MASSAGE_GROUP.label && (
+              <div className="absolute left-0 top-full z-40 pt-2">
                 <div
                   className="min-w-[230px] rounded-2xl p-2"
                   style={{
@@ -227,58 +320,33 @@ export default function Header() {
                     boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
                   }}
                 >
+                  <Link
+                    href={`/listings?services=${encodeURIComponent('Massage')},${encodeURIComponent('Erotic massage')}`}
+                    onClick={() => setDesktopExpanded(null)}
+                    className="mb-1 flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-white"
+                    style={{ background: 'rgba(233,30,140,0.16)' }}
+                  >
+                    <span>View all massages</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: '#f472b6' }}>
+                      Massages
+                    </span>
+                  </Link>
                   {SERVICE_LINKS.map((item) => (
                     <Link
-                      key={`${group.label}-${item.label}`}
-                      href={`/listings?category=${group.category}&services=${encodeURIComponent(item.service)}`}
+                      key={`massage-${item.label}`}
+                      href={`/listings?services=${encodeURIComponent(item.service)}`}
+                      onClick={() => setDesktopExpanded(null)}
                       className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
                     >
                       <span>{item.label}</span>
                       <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
-                        {group.label}
+                        Massages
                       </span>
                     </Link>
                   ))}
                 </div>
               </div>
-            </div>
-          ))}
-
-          <div className="group relative">
-            <Link
-              href={`/listings?services=${encodeURIComponent('Massage')},${encodeURIComponent('Erotic massage')}`}
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:text-white"
-            >
-              <span>{MASSAGE_GROUP.icon}</span>
-              {MASSAGE_GROUP.label}
-              <svg className="h-4 w-4 text-gray-500 transition-transform group-hover:rotate-180 group-hover:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </Link>
-
-            <div className="pointer-events-none absolute left-0 top-full z-40 pt-2 opacity-0 transition-all duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-              <div
-                className="min-w-[230px] rounded-2xl p-2"
-                style={{
-                  background: 'rgba(19, 19, 31, 0.98)',
-                  border: '1px solid var(--border)',
-                  boxShadow: '0 20px 40px rgba(0,0,0,0.35)',
-                }}
-              >
-                {SERVICE_LINKS.map((item) => (
-                  <Link
-                    key={`massage-${item.label}`}
-                    href={`/listings?services=${encodeURIComponent(item.service)}`}
-                    className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-gray-300 transition-colors hover:text-white"
-                  >
-                    <span>{item.label}</span>
-                    <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
-                      Massages
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </nav>

@@ -39,6 +39,7 @@ function StarRow({ rating, size = 'text-base' }: { rating: number; size?: string
 export default function ProfileDetail({ profile, related }: Props) {
   const router = useRouter();
   const reviewsApiUrl = profile.advisorId ? `/api/advisor/${profile.advisorId}/reviews` : null;
+  const [viewCount, setViewCount] = useState(profile.views);
   const [selectedPhoto, setSelectedPhoto] = useState<ProfilePhoto | undefined>(
     profile.photos.find((p: ProfilePhoto) => p.isMain) ?? profile.photos[0]
   );
@@ -81,6 +82,33 @@ export default function ProfileDetail({ profile, related }: Props) {
       setViewerRole(user?.user_metadata?.role ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    setViewCount(profile.views);
+  }, [profile.views]);
+
+  useEffect(() => {
+    if (!profile.advisorId) return;
+
+    let active = true;
+
+    async function registerView() {
+      try {
+        const res = await fetch(`/api/advisor/${profile.advisorId}/views`, { method: 'POST' });
+        const json = await res.json().catch(() => ({}));
+        if (active && res.ok && typeof json?.views === 'number') {
+          setViewCount(json.views);
+        }
+      } catch {
+        // Silent: profile view counting should never break page rendering
+      }
+    }
+
+    void registerView();
+    return () => {
+      active = false;
+    };
+  }, [profile.advisorId]);
 
   useEffect(() => {
     if (!profile.reviewsEnabled || !reviewsApiUrl) {
@@ -201,6 +229,145 @@ export default function ProfileDetail({ profile, related }: Props) {
     }
   }
 
+  function renderProfileSummaryCard(isSticky: boolean) {
+    return (
+      <div
+        className={`${isSticky ? 'sticky top-4 ' : ''}rounded-2xl p-6 space-y-5`}
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+      >
+        {/* Name & info */}
+        <div>
+          {chatMsg && (
+            <div className="mb-4 rounded-lg px-4 py-3 text-xs"
+              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe' }}>
+              {chatMsg}
+            </div>
+          )}
+
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-black text-white">
+                {profile.name}
+              </h1>
+              <p className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {profile.age} yrs
+              </p>
+            </div>
+            {profile.subscriptionLevel !== 'free' && (
+              <TierBadge level={profile.subscriptionLevel} />
+            )}
+          </div>
+
+          {/* Location */}
+          <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {profile.city}
+            {profile.district ? `, ${profile.district}` : ''}
+          </div>
+
+          {/* Status */}
+          <div className="flex items-center gap-2 mt-2">
+            <span
+              className="w-2.5 h-2.5 rounded-full inline-block"
+              style={{ background: availabilityColor[profile.availability] }}
+            />
+            <span className="text-sm" style={{ color: availabilityColor[profile.availability] }}>
+              {availabilityLabel[profile.availability]}
+            </span>
+          </div>
+
+          {profile.reviewsEnabled && !reviewsLoading && (
+            <div className="mt-4 rounded-xl px-4 py-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
+                    Client reviews
+                  </p>
+                  <div className="mt-2 flex items-center gap-3">
+                    <span className="text-2xl font-black text-white">
+                      {reviewsData.averageRating ? reviewsData.averageRating.toFixed(1) : '0.0'}
+                    </span>
+                    <StarRow rating={Math.round(reviewsData.averageRating)} />
+                  </div>
+                </div>
+                <span className="text-xs text-right" style={{ color: 'var(--text-muted)' }}>
+                  {reviewsData.reviewCount} review{reviewsData.reviewCount === 1 ? '' : 's'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Views */}
+        <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          {viewCount.toLocaleString()} views
+        </div>
+
+        {/* Rates */}
+        <div>
+          <h3 className="font-semibold text-gray-200 mb-3 text-sm">Rates</h3>
+          <div className="space-y-2">
+            {profile.rates.map((rate: typeof profile.rates[0], index: number) => (
+              <div
+                key={`${rate.duration}-${rate.label}-${rate.price}-${index}`}
+                className="flex items-center justify-between px-3 py-2 rounded-lg text-sm"
+                style={{ background: 'var(--bg-elevated)' }}
+              >
+                <span className="text-gray-400">{rate.label}</span>
+                <span className="font-bold text-white">€{rate.price}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <button
+          type="button"
+          onClick={handleOpenChat}
+          disabled={chatBusy || !profile.advisorId}
+          className="btn-outline w-full justify-center py-3 text-sm font-semibold disabled:opacity-60"
+        >
+          {chatBusy ? 'Opening chat...' : viewerRole === 'guest' ? 'Open live chat' : viewerRole ? 'Live chat for client accounts' : 'Sign in to start chat'}
+        </button>
+
+        <button
+          onClick={() => setShowContact(true)}
+          className="btn-accent w-full justify-center py-3 text-sm font-semibold"
+        >
+          📞 Contact {profile.name}
+        </button>
+
+        <button
+          className="btn-ghost w-full justify-center py-2.5 text-sm"
+          onClick={() => {
+            navigator.share?.({
+              title: `${profile.name} – Lvvd`,
+              url: window.location.href,
+            });
+          }}
+        >
+          Share profile
+        </button>
+
+        {/* Safety notice */}
+        <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+          🔒 Your data is safe. We never share your information with third parties.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-main)' }}>
       {/* Breadcrumb */}
@@ -301,6 +468,11 @@ export default function ProfileDetail({ profile, related }: Props) {
                   ))}
                 </div>
               )}
+            </div>
+
+            {/* Mobile summary card */}
+            <div className="lg:hidden">
+              {renderProfileSummaryCard(false)}
             </div>
 
             {/* Description */}
@@ -549,141 +721,8 @@ export default function ProfileDetail({ profile, related }: Props) {
           </div>
 
           {/* Right column – sticky sidebar */}
-          <div className="space-y-4">
-            <div
-              className="sticky top-4 rounded-2xl p-6 space-y-5"
-              style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-            >
-              {/* Name & info */}
-              <div>
-                {chatMsg && (
-                  <div className="mb-4 rounded-lg px-4 py-3 text-xs"
-                    style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)', color: '#bfdbfe' }}>
-                    {chatMsg}
-                  </div>
-                )}
-
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h1 className="text-2xl font-black text-white">
-                      {profile.name}
-                    </h1>
-                    <p className="text-lg font-semibold mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {profile.age} yrs
-                    </p>
-                  </div>
-                  {profile.subscriptionLevel !== 'free' && (
-                    <TierBadge level={profile.subscriptionLevel} />
-                  )}
-                </div>
-
-                {/* Location */}
-                <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-400">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  {profile.city}
-                  {profile.district ? `, ${profile.district}` : ''}
-                </div>
-
-                {/* Status */}
-                <div className="flex items-center gap-2 mt-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full inline-block"
-                    style={{ background: availabilityColor[profile.availability] }}
-                  />
-                  <span className="text-sm" style={{ color: availabilityColor[profile.availability] }}>
-                    {availabilityLabel[profile.availability]}
-                  </span>
-                </div>
-
-                {profile.reviewsEnabled && !reviewsLoading && (
-                  <div className="mt-4 rounded-xl px-4 py-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>
-                          Client reviews
-                        </p>
-                        <div className="mt-2 flex items-center gap-3">
-                          <span className="text-2xl font-black text-white">
-                            {reviewsData.averageRating ? reviewsData.averageRating.toFixed(1) : '0.0'}
-                          </span>
-                          <StarRow rating={Math.round(reviewsData.averageRating)} />
-                        </div>
-                      </div>
-                      <span className="text-xs text-right" style={{ color: 'var(--text-muted)' }}>
-                        {reviewsData.reviewCount} review{reviewsData.reviewCount === 1 ? '' : 's'}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Views */}
-              <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-                {profile.views.toLocaleString()} views
-              </div>
-
-              {/* Rates */}
-              <div>
-                <h3 className="font-semibold text-gray-200 mb-3 text-sm">Rates</h3>
-                <div className="space-y-2">
-                  {profile.rates.map((rate: typeof profile.rates[0], index: number) => (
-                    <div
-                      key={`${rate.duration}-${rate.label}-${rate.price}-${index}`}
-                      className="flex items-center justify-between px-3 py-2 rounded-lg text-sm"
-                      style={{ background: 'var(--bg-elevated)' }}
-                    >
-                      <span className="text-gray-400">{rate.label}</span>
-                      <span className="font-bold text-white">€{rate.price}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* CTA */}
-              <button
-                type="button"
-                onClick={handleOpenChat}
-                disabled={chatBusy || !profile.advisorId}
-                className="btn-outline w-full justify-center py-3 text-sm font-semibold disabled:opacity-60"
-              >
-                {chatBusy ? 'Opening chat...' : viewerRole === 'guest' ? 'Open live chat' : viewerRole ? 'Live chat for client accounts' : 'Sign in to start chat'}
-              </button>
-
-              <button
-                onClick={() => setShowContact(true)}
-                className="btn-accent w-full justify-center py-3 text-sm font-semibold"
-              >
-                📞 Contact {profile.name}
-              </button>
-
-              <button
-                className="btn-ghost w-full justify-center py-2.5 text-sm"
-                onClick={() => {
-                  navigator.share?.({
-                    title: `${profile.name} – Lvvd`,
-                    url: window.location.href,
-                  });
-                }}
-              >
-                Share profile
-              </button>
-
-              {/* Safety notice */}
-              <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                🔒 Your data is safe. We never share your information with third parties.
-              </p>
-            </div>
+          <div className="hidden lg:block">
+            {renderProfileSummaryCard(true)}
           </div>
         </div>
 

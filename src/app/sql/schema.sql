@@ -17,20 +17,18 @@ CREATE TABLE public.advisor_media (
 CREATE TABLE public.advisor_verification_uploads (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   advisor_id uuid NOT NULL,
-  kind text NOT NULL,
+  kind text NOT NULL CHECK (kind = ANY (ARRAY['front_selfie'::text, 'proof_selfie'::text])),
   cloudinary_id text NOT NULL,
   url text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT advisor_verification_uploads_pkey PRIMARY KEY (id),
-  CONSTRAINT advisor_verification_uploads_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id),
-  CONSTRAINT advisor_verification_uploads_kind_check CHECK (kind = ANY (ARRAY['front_selfie'::text, 'proof_selfie'::text]))
+  CONSTRAINT advisor_verification_uploads_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
 );
 CREATE TABLE public.advisors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   profile_id uuid NOT NULL UNIQUE,
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
-  advisor_category text NOT NULL DEFAULT 'woman'::text CHECK (advisor_category = ANY (ARRAY['woman'::text, 'man'::text, 'couple'::text, 'shemale'::text])),
   bio text,
   city text NOT NULL,
   region text,
@@ -44,23 +42,13 @@ CREATE TABLE public.advisors (
   eye_color text,
   hair_color text,
   ethnicity text,
-  sexual_orientation text,
   availability USER-DEFINED DEFAULT 'both'::availability_type,
-  date_types ARRAY DEFAULT '{}'::text[],
   languages ARRAY DEFAULT '{it}'::text[],
   services_tags ARRAY DEFAULT '{}'::text[],
-  incall_rates jsonb DEFAULT '[]'::jsonb,
-  outcall_rates jsonb DEFAULT '[]'::jsonb,
-  availability_slots ARRAY DEFAULT '{}'::text[],
   phone text,
   whatsapp_available boolean DEFAULT false,
   telegram_available boolean DEFAULT false,
-  reviews_enabled boolean NOT NULL DEFAULT true,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::advisor_status,
-  verification_status text NOT NULL DEFAULT 'not_submitted'::text,
-  verification_submitted_at timestamp with time zone,
-  verification_reviewed_at timestamp with time zone,
-  verification_note text,
   is_verified boolean DEFAULT false,
   is_featured boolean DEFAULT false,
   views_count integer NOT NULL DEFAULT 0,
@@ -69,15 +57,29 @@ CREATE TABLE public.advisors (
   published_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  advisor_category text NOT NULL DEFAULT 'woman'::text CHECK (advisor_category = ANY (ARRAY['woman'::text, 'man'::text, 'couple'::text, 'shemale'::text])),
+  sexual_orientation text CHECK (sexual_orientation IS NULL OR (sexual_orientation = ANY (ARRAY['Straight'::text, 'Lesbian'::text, 'Gay'::text, 'Bisex'::text]))),
+  date_types ARRAY NOT NULL DEFAULT '{}'::text[],
+  incall_rates jsonb NOT NULL DEFAULT '[]'::jsonb,
+  outcall_rates jsonb NOT NULL DEFAULT '[]'::jsonb,
+  availability_slots ARRAY NOT NULL DEFAULT '{}'::text[],
+  reviews_enabled boolean NOT NULL DEFAULT true,
+  verification_status text NOT NULL DEFAULT 'not_submitted'::text CHECK (verification_status = ANY (ARRAY['not_submitted'::text, 'submitted'::text, 'approved'::text, 'rejected'::text])),
+  verification_submitted_at timestamp with time zone,
+  verification_note text,
+  verification_reviewed_at timestamp with time zone,
   CONSTRAINT advisors_pkey PRIMARY KEY (id),
   CONSTRAINT advisors_city_fkey FOREIGN KEY (city) REFERENCES public.dutch_cities(name)
 );
-CREATE TABLE public.cities (
-  id text NOT NULL,
-  name text NOT NULL,
-  count integer DEFAULT 0,
-  region text,
-  CONSTRAINT cities_pkey PRIMARY KEY (id)
+CREATE TABLE public.chat_blocks (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  advisor_id uuid NOT NULL,
+  guest_profile_id uuid NOT NULL,
+  blocked_by_profile_id uuid NOT NULL,
+  blocked_by_role text NOT NULL CHECK (blocked_by_role = ANY (ARRAY['advisor'::text, 'guest'::text])),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT chat_blocks_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_blocks_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
 );
 CREATE TABLE public.chat_conversations (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -94,19 +96,46 @@ CREATE TABLE public.chat_messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   conversation_id uuid NOT NULL,
   sender_profile_id uuid NOT NULL,
-  sender_role text NOT NULL,
+  sender_role text NOT NULL CHECK (sender_role = ANY (ARRAY['advisor'::text, 'guest'::text])),
   body text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   read_at timestamp with time zone,
+  attachment_url text,
+  attachment_kind text CHECK (attachment_kind IS NULL OR (attachment_kind = ANY (ARRAY['image'::text, 'video'::text]))),
+  attachment_cloudinary_id text,
   CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT chat_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.chat_conversations(id),
-  CONSTRAINT chat_messages_sender_role_check CHECK (sender_role = ANY (ARRAY['advisor'::text, 'guest'::text]))
+  CONSTRAINT chat_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.chat_conversations(id)
+);
+CREATE TABLE public.chat_reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  conversation_id uuid NOT NULL,
+  advisor_id uuid NOT NULL,
+  guest_profile_id uuid NOT NULL,
+  reporter_profile_id uuid NOT NULL,
+  reporter_role text NOT NULL CHECK (reporter_role = ANY (ARRAY['advisor'::text, 'guest'::text])),
+  reason text NOT NULL CHECK (reason = ANY (ARRAY['spam'::text, 'abuse'::text, 'scam'::text, 'fake'::text, 'other'::text])),
+  details text,
+  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['open'::text, 'reviewing'::text, 'resolved'::text, 'dismissed'::text])),
+  admin_note text,
+  reviewed_at timestamp with time zone,
+  reviewed_by text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT chat_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_reports_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.chat_conversations(id),
+  CONSTRAINT chat_reports_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
+);
+CREATE TABLE public.cities (
+  id text NOT NULL,
+  name text NOT NULL,
+  count integer DEFAULT 0,
+  region text,
+  CONSTRAINT cities_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.client_memberships (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   profile_id uuid NOT NULL,
-  plan text NOT NULL DEFAULT 'gold'::text,
-  status text NOT NULL DEFAULT 'inactive'::text,
+  plan text NOT NULL DEFAULT 'gold'::text CHECK (plan = 'gold'::text),
+  status text NOT NULL DEFAULT 'inactive'::text CHECK (status = ANY (ARRAY['active'::text, 'canceled'::text, 'expired'::text, 'inactive'::text])),
   stripe_customer_id text,
   stripe_subscription_id text UNIQUE,
   stripe_price_id text,
@@ -118,14 +147,7 @@ CREATE TABLE public.client_memberships (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT client_memberships_pkey PRIMARY KEY (id),
-  CONSTRAINT client_memberships_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
-  CONSTRAINT client_memberships_plan_check CHECK (plan = 'gold'::text),
-  CONSTRAINT client_memberships_status_check CHECK (status = ANY (ARRAY['active'::text, 'canceled'::text, 'expired'::text, 'inactive'::text]))
-);
-CREATE TABLE public.dutch_cities (
-  name text NOT NULL,
-  region text NOT NULL,
-  CONSTRAINT dutch_cities_pkey PRIMARY KEY (name)
+  CONSTRAINT client_memberships_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
 );
 CREATE TABLE public.credit_transactions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -147,6 +169,11 @@ CREATE TABLE public.credit_wallets (
   balance integer NOT NULL DEFAULT 0 CHECK (balance >= 0),
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT credit_wallets_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.dutch_cities (
+  name text NOT NULL,
+  region text NOT NULL,
+  CONSTRAINT dutch_cities_pkey PRIMARY KEY (name)
 );
 CREATE TABLE public.favorites (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -198,11 +225,11 @@ CREATE TABLE public.reviews (
   advisor_id uuid NOT NULL,
   profile_id uuid NOT NULL,
   rating smallint NOT NULL CHECK (rating >= 1 AND rating <= 5),
-  title text NOT NULL DEFAULT 'Client review'::text,
   comment text,
-  reviewer_username text NOT NULL DEFAULT 'guest'::text,
   is_visible boolean DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
+  title text NOT NULL DEFAULT 'Client review'::text,
+  reviewer_username text NOT NULL DEFAULT 'guest'::text,
   CONSTRAINT reviews_pkey PRIMARY KEY (id),
   CONSTRAINT reviews_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.advisors(id)
 );

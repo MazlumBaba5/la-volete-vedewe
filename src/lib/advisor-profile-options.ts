@@ -20,6 +20,32 @@ export const ADVISOR_ETHNICITIES = [
   'Thai',
 ] as const;
 
+export const ADVISOR_HAIR_COLORS = [
+  'Black',
+  'Brown',
+  'Blonde',
+  'Red',
+  'Auburn',
+  'Grey',
+  'White',
+  'Bald / Shaved',
+  'Mixed',
+  'Other',
+] as const;
+
+export const ADVISOR_EYE_COLORS = [
+  'Brown',
+  'Blue',
+  'Green',
+  'Hazel',
+  'Gray',
+  'Amber',
+  'Black',
+  'Mixed',
+] as const;
+
+export const ADVISOR_HEIGHT_OPTIONS = Array.from({ length: 71 }, (_, index) => 140 + index);
+
 export const DATE_TYPE_OPTIONS = [
   'Incall',
   'Outcall',
@@ -208,6 +234,8 @@ export const AVAILABILITY_SLOT_OPTIONS = AVAILABILITY_DAYS.flatMap((day) =>
 );
 
 export type AdvisorEthnicity = (typeof ADVISOR_ETHNICITIES)[number];
+export type AdvisorHairColor = (typeof ADVISOR_HAIR_COLORS)[number];
+export type AdvisorEyeColor = (typeof ADVISOR_EYE_COLORS)[number];
 export type DateTypeOption = (typeof DATE_TYPE_OPTIONS)[number];
 export type SexOrientation = (typeof SEX_ORIENTATION_OPTIONS)[number];
 export type PriceDurationOption = (typeof PRICE_DURATION_OPTIONS)[number];
@@ -224,6 +252,9 @@ export type StoredRate = {
 export type RateFormState = Record<PriceCode, string>;
 
 const ETHNICITY_SET = new Set<string>(ADVISOR_ETHNICITIES);
+const HAIR_COLOR_SET = new Set<string>(ADVISOR_HAIR_COLORS);
+const EYE_COLOR_SET = new Set<string>(ADVISOR_EYE_COLORS);
+const HEIGHT_SET = new Set<number>(ADVISOR_HEIGHT_OPTIONS);
 const DATE_TYPE_SET = new Set<string>(DATE_TYPE_OPTIONS);
 const SEX_ORIENTATION_SET = new Set<string>(SEX_ORIENTATION_OPTIONS);
 const AVAILABILITY_SLOT_SET = new Set<string>(AVAILABILITY_SLOT_OPTIONS);
@@ -236,6 +267,25 @@ const SERVICE_SET = new Set<string>([
 
 export function isAdvisorEthnicity(value: string): value is AdvisorEthnicity {
   return ETHNICITY_SET.has(value);
+}
+
+export function isAdvisorHairColor(value: string): value is AdvisorHairColor {
+  return HAIR_COLOR_SET.has(value);
+}
+
+export function isAdvisorEyeColor(value: string): value is AdvisorEyeColor {
+  return EYE_COLOR_SET.has(value);
+}
+
+export function sanitizeAdvisorHeight(value: unknown): number | null {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+    ? Number(value)
+    : NaN;
+
+  if (!Number.isInteger(numeric)) return null;
+  return HEIGHT_SET.has(numeric) ? numeric : null;
 }
 
 export function isSexOrientation(value: string): value is SexOrientation {

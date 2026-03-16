@@ -9,6 +9,10 @@ import {
   sanitizeRates,
   sanitizeServices,
 } from '@/lib/advisor-profile-options'
+import {
+  getBlockedEmailRegistrationError,
+  normalizeEmailAddress,
+} from '@/lib/email-domain-policy'
 import { isValidGuestUsername, normalizeGuestUsername } from '@/lib/guest-auth'
 import { findDutchCity } from '@/lib/netherlands-cities'
 import cloudinary from '@/lib/cloudinary/config'
@@ -19,6 +23,9 @@ const MAX_ADVISOR_PHOTOS = 25
 const MAX_ADVISOR_PHOTO_SIZE_BYTES = 10 * 1024 * 1024
 const ALLOWED_ADVISOR_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
+type AdvisorGender = 'female' | 'male' | 'shemale' | 'couple'
+type AdvisorDbGender = AdvisorGender | 'trans' | 'other'
+
 type Body = {
   email: string
   password: string
@@ -26,7 +33,7 @@ type Body = {
   name?: string
   advisorCategory?: 'woman' | 'man' | 'couple' | 'shemale'
   age?: number
-  gender?: 'female' | 'male' | 'shemale' | 'couple'
+  gender?: AdvisorGender | 'trans' | 'other'
   ethnicity?: string
   city?: string
   region?: string
@@ -51,6 +58,28 @@ function categoryFromGender(gender: 'female' | 'male' | 'shemale' | 'couple') {
   if (gender === 'shemale') return 'shemale'
   if (gender === 'couple') return 'couple'
   return 'woman'
+}
+
+function normalizeAdvisorGender(value: unknown): AdvisorGender | null {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (normalized === 'female' || normalized === 'male' || normalized === 'couple') {
+    return normalized
+  }
+  if (normalized === 'shemale' || normalized === 'trans' || normalized === 'other') {
+    return 'shemale'
+  }
+  return null
+}
+
+function getDbGenderCandidates(gender: AdvisorGender): AdvisorDbGender[] {
+  if (gender === 'shemale') return ['shemale', 'trans', 'other', 'female', 'male']
+  if (gender === 'couple') return ['couple', 'female', 'male']
+  if (gender === 'male') return ['male', 'female']
+  return ['female', 'male']
+}
+
+function isInvalidGenderEnumError(message?: string) {
+  return Boolean(message?.includes('invalid input value for enum gender_type'))
 }
 
 function makeSlug(name = '') {
@@ -165,6 +194,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
 
+    const normalizedEmail = normalizeEmailAddress(body.email)
+    if (!normalizedEmail) {
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    }
+
+    const blockedEmailError = getBlockedEmailRegistrationError(normalizedEmail)
+    if (blockedEmailError) {
+      return NextResponse.json({ error: blockedEmailError }, { status: 400 })
+    }
+
     const selectedCity = findDutchCity(body.city)
     const dateTypes = sanitizeDateTypes(body.dateTypes)
     const servicesTags = sanitizeServices(body.servicesTags)
@@ -189,7 +228,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Please select a valid ethnicity' }, { status: 400 })
       }
 
-      if (!body.gender || !['female', 'male', 'shemale', 'couple'].includes(body.gender)) {
+      const requestedGender = normalizeAdvisorGender(body.gender)
+      if (!requestedGender) {
         return NextResponse.json({ error: 'Please select a valid gender' }, { status: 400 })
       }
 
@@ -231,15 +271,13 @@ export async function POST(req: Request) {
       }
     }
 
-    const normalizedGender = (body.gender && ['female', 'male', 'shemale', 'couple'].includes(body.gender))
-      ? body.gender
-      : 'female'
+    const normalizedGender = normalizeAdvisorGender(body.gender) ?? 'female'
     const advisorCategory = categoryFromGender(normalizedGender)
 
     const supabase = await createClient()
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: body.email as string,
+      email: normalizedEmail,
       password: body.password,
       options: {
         data: {
@@ -281,34 +319,55 @@ export async function POST(req: Request) {
       const slug = makeSlug(name)
       const admin = createAdminClient()
 
-      const { data: advisor, error: advisorError } = await admin
-        .from('advisors')
-        .insert([{
-          profile_id: userId,
-          name,
-          slug,
-          advisor_category: advisorCategory,
-          city,
-          region: selectedCity?.region || null,
-          age: body.age ?? null,
-          gender: normalizedGender,
-          ethnicity: body.ethnicity?.trim() || null,
-          bio: body.bio?.trim() || null,
-          sexual_orientation: body.sexualOrientation ?? null,
-          date_types: dateTypes,
-          services_tags: servicesTags,
-          incall_rates: incallRates,
-          outcall_rates: outcallRates,
-          availability_slots: availabilitySlots,
-          availability: deriveAvailability(dateTypes),
-          phone: body.phone?.trim() || null,
-          whatsapp_available: Boolean(body.whatsappAvailable),
-          status: 'pending',
-        }])
-        .select('id')
-        .single()
+      const advisorInsertBase = {
+        profile_id: userId,
+        name,
+        slug,
+        advisor_category: advisorCategory,
+        city,
+        region: selectedCity?.region || null,
+        age: body.age ?? null,
+        ethnicity: body.ethnicity?.trim() || null,
+        bio: body.bio?.trim() || null,
+        sexual_orientation: body.sexualOrientation ?? null,
+        date_types: dateTypes,
+        services_tags: servicesTags,
+        incall_rates: incallRates,
+        outcall_rates: outcallRates,
+        availability_slots: availabilitySlots,
+        availability: deriveAvailability(dateTypes),
+        phone: body.phone?.trim() || null,
+        whatsapp_available: Boolean(body.whatsappAvailable),
+        status: 'pending' as const,
+      }
 
-      if (advisorError || !advisor) {
+      let advisor: { id: string } | null = null
+      let advisorError: { message?: string } | null = null
+      const genderCandidates = getDbGenderCandidates(normalizedGender)
+
+      for (let index = 0; index < genderCandidates.length; index += 1) {
+        const dbGender = genderCandidates[index]
+        const attempt = await admin
+          .from('advisors')
+          .insert([{ ...advisorInsertBase, gender: dbGender }])
+          .select('id')
+          .single()
+
+        if (!attempt.error && attempt.data) {
+          advisor = attempt.data as { id: string }
+          advisorError = null
+          break
+        }
+
+        advisorError = attempt.error as { message?: string } | null
+        const canRetry =
+          index < genderCandidates.length - 1 &&
+          isInvalidGenderEnumError(advisorError?.message)
+
+        if (!canRetry) break
+      }
+
+      if (!advisor) {
         console.error('[register] advisor insert error:', advisorError?.message)
         return NextResponse.json({ error: advisorError?.message ?? 'Failed to create advisor profile' }, { status: 500 })
       }

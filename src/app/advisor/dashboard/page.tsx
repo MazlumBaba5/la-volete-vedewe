@@ -6,7 +6,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
+  ADVISOR_EYE_COLORS,
   ADVISOR_ETHNICITIES,
+  ADVISOR_HAIR_COLORS,
+  ADVISOR_HEIGHT_OPTIONS,
   AVAILABILITY_DAYS,
   AVAILABILITY_TIME_OPTIONS,
   BDSM_SERVICE_OPTIONS,
@@ -14,9 +17,12 @@ import {
   createEmptyRateState,
   DATE_TYPE_OPTIONS,
   GENERAL_SERVICE_OPTIONS,
+  isAdvisorEyeColor,
+  isAdvisorHairColor,
   MASSAGE_SERVICE_OPTIONS,
   PRICE_DURATION_OPTIONS,
   ratesToFormState,
+  sanitizeAdvisorHeight,
   type PriceCode,
   SEX_ORIENTATION_OPTIONS,
   VIRTUAL_SERVICE_OPTIONS,
@@ -188,10 +194,10 @@ function rowToForm(r: AdvisorRow): ProfileForm {
     region: r.region ?? '',
     age: r.age,
     gender: r.gender ?? 'female',
-    height_cm: r.height_cm,
+    height_cm: sanitizeAdvisorHeight(r.height_cm),
     weight_kg: r.weight_kg,
-    eye_color: r.eye_color ?? '',
-    hair_color: r.hair_color ?? '',
+    eye_color: r.eye_color && isAdvisorEyeColor(r.eye_color) ? r.eye_color : '',
+    hair_color: r.hair_color && isAdvisorHairColor(r.hair_color) ? r.hair_color : '',
     ethnicity: r.ethnicity ?? '',
     sexual_orientation: r.sexual_orientation ?? '',
     availability: r.availability ?? 'both',
@@ -1216,9 +1222,16 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Height (cm)</label>
-                      <input type="number" min={140} max={210} value={form.height_cm ?? ''}
+                      <select
+                        value={form.height_cm ?? ''}
                         onChange={(e) => upd('height_cm', e.target.value ? Number(e.target.value) : null)}
-                        placeholder="168" className="input-dark" />
+                        className="input-dark"
+                      >
+                        <option value="">Select height</option>
+                        {ADVISOR_HEIGHT_OPTIONS.map((height) => (
+                          <option key={height} value={height}>{height} cm</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Weight (kg)</label>
@@ -1231,11 +1244,21 @@ export default function DashboardPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Hair color</label>
-                      <input type="text" value={form.hair_color} onChange={(e) => upd('hair_color', e.target.value)} placeholder="e.g. Blonde, Brunette, Red..." className="input-dark" />
+                      <select value={form.hair_color} onChange={(e) => upd('hair_color', e.target.value)} className="input-dark">
+                        <option value="">Select hair color</option>
+                        {ADVISOR_HAIR_COLORS.map((color) => (
+                          <option key={color} value={color}>{color}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-400 mb-1.5">Eye color</label>
-                      <input type="text" value={form.eye_color} onChange={(e) => upd('eye_color', e.target.value)} placeholder="e.g. Blue, Brown, Green..." className="input-dark" />
+                      <select value={form.eye_color} onChange={(e) => upd('eye_color', e.target.value)} className="input-dark">
+                        <option value="">Select eye color</option>
+                        {ADVISOR_EYE_COLORS.map((color) => (
+                          <option key={color} value={color}>{color}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
