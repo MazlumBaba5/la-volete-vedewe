@@ -101,8 +101,7 @@ export default function ProfileCard({ profile }: ProfileCardProps) {
               </p>
             </div>
             {minRate && (
-              <div className="text-right">
-                <p className="text-xs text-gray-400">da</p>
+              <div className={profile.photos.length > 1 ? 'text-right mb-6' : 'text-right'}>
                 <p className="text-white font-bold text-sm">€{minRate}</p>
               </div>
             )}

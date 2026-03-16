@@ -1,8 +1,10 @@
 import type Stripe from 'stripe'
+import { sendPaidPlanActivationEmail } from '@/lib/email'
 import { createAdminClient } from '@/lib/supabase/server'
 import { addOneMonthPreservingCalendar, isSubscriptionCurrentlyActive } from '@/lib/subscriptions'
 
 type LocalSubscriptionStatus = 'active' | 'canceled' | 'expired'
+type BillingTableName = 'subscriptions' | 'client_memberships'
 
 function mapStripeStatus(status: Stripe.Subscription.Status): LocalSubscriptionStatus {
   if (status === 'active' || status === 'trialing' || status === 'past_due' || status === 'unpaid') {
@@ -59,6 +61,111 @@ async function findClientMembershipOwner(stripeSubscriptionId: string) {
   }
 
   return data?.profile_id as string | undefined
+}
+
+async function findProfileIdByAdvisorId(advisorId: string) {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('advisors')
+    .select('profile_id')
+    .eq('id', advisorId)
+    .maybeSingle()
+
+  if (error) {
+    throw error
+  }
+
+  return data?.profile_id as string | undefined
+}
+
+function toMetadataObject(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return {} as Record<string, unknown>
+  }
+
+  return metadata as Record<string, unknown>
+}
+
+function hasActivationEmailMarker(metadata: unknown) {
+  const normalized = toMetadataObject(metadata)
+  return typeof normalized.activation_email_sent_at === 'string' && normalized.activation_email_sent_at.length > 0
+}
+
+async function sendPlanActivationEmailIfNeeded(input: {
+  supabase: ReturnType<typeof createAdminClient>
+  table: BillingTableName
+  rowId: string
+  profileId: string
+  metadata: unknown
+  planLabel: string
+  dashboardPath: string
+  currentPeriodEnd?: string | null
+}) {
+  if (hasActivationEmailMarker(input.metadata)) {
+    return
+  }
+
+  try {
+    const { data: userData, error: userError } = await input.supabase.auth.admin.getUserById(input.profileId)
+    if (userError) {
+      throw userError
+    }
+
+    const user = userData.user
+    const recipientEmail = user?.email?.trim().toLowerCase()
+    if (!recipientEmail) {
+      console.warn('[billing] Skipping paid plan activation email: missing recipient email', {
+        table: input.table,
+        rowId: input.rowId,
+        profileId: input.profileId,
+      })
+      return
+    }
+
+    const userMetadata = (user?.user_metadata as Record<string, unknown> | undefined) ?? {}
+    const displayName =
+      (typeof userMetadata.name === 'string' && userMetadata.name.trim()) ||
+      (typeof userMetadata.username === 'string' && userMetadata.username.trim()) ||
+      recipientEmail.split('@')[0]
+
+    await sendPaidPlanActivationEmail({
+      to: recipientEmail,
+      displayName,
+      planLabel: input.planLabel,
+      dashboardPath: input.dashboardPath,
+      currentPeriodEnd: input.currentPeriodEnd ?? null,
+    })
+
+    const sentAt = new Date().toISOString()
+    const nextMetadata = {
+      ...toMetadataObject(input.metadata),
+      activation_email_sent_at: sentAt,
+    }
+
+    const { error: metadataError } = await input.supabase
+      .from(input.table)
+      .update({
+        metadata: nextMetadata,
+        updated_at: sentAt,
+      })
+      .eq('id', input.rowId)
+
+    if (metadataError) {
+      console.error('[billing] Failed to persist activation email marker', {
+        table: input.table,
+        rowId: input.rowId,
+        metadataError,
+      })
+    }
+  } catch (error) {
+    console.error('[billing] Paid plan activation email failed', {
+      table: input.table,
+      rowId: input.rowId,
+      profileId: input.profileId,
+      error,
+    })
+  }
 }
 
 export async function syncSubscriptionFromStripe(subscription: Stripe.Subscription) {
@@ -331,6 +438,7 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
   }
 
   const advisorId = metadata.advisor_id
+  const metadataProfileId = metadata.profile_id
   const tier = metadata.tier === 'diamond' ? 'diamond' : metadata.tier === 'premium' ? 'premium' : 'free'
   const paymentIntentId = typeof session.payment_intent === 'string'
     ? session.payment_intent
@@ -351,10 +459,13 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
 
   const supabase = createAdminClient()
   const referenceId = `manual:${paymentIntentId}`
+  const profileId =
+    (typeof metadataProfileId === 'string' && metadataProfileId) ||
+    await findProfileIdByAdvisorId(advisorId)
 
   const { data: existing, error: existingLookupError } = await supabase
     .from('subscriptions')
-    .select('id')
+    .select('id, metadata, current_period_end')
     .eq('stripe_subscription_id', referenceId)
     .maybeSingle()
 
@@ -363,6 +474,18 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
   }
 
   if (existing?.id) {
+    if (profileId) {
+      await sendPlanActivationEmailIfNeeded({
+        supabase,
+        table: 'subscriptions',
+        rowId: existing.id,
+        profileId,
+        metadata: existing.metadata,
+        planLabel: tier === 'diamond' ? 'Diamond' : 'Premium',
+        dashboardPath: '/advisor/dashboard?tab=subscription',
+        currentPeriodEnd: existing.current_period_end ?? null,
+      })
+    }
     return
   }
 
@@ -405,7 +528,14 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
     }
   }
 
-  const { error: insertError } = await supabase
+  const insertedMetadata = {
+    ...metadata,
+    source: 'stripe_checkout_manual',
+    checkout_session_id: session.id,
+    payment_intent_id: paymentIntentId,
+  }
+
+  const { data: insertedSubscription, error: insertError } = await supabase
     .from('subscriptions')
     .insert([{
       advisor_id: advisorId,
@@ -418,18 +548,28 @@ export async function activateSubscriptionFromCheckoutSession(session: Stripe.Ch
       current_period_end: periodEnd.toISOString(),
       cancel_at_period_end: false,
       cancelled_at: null,
-      metadata: {
-        ...metadata,
-        source: 'stripe_checkout_manual',
-        checkout_session_id: session.id,
-        payment_intent_id: paymentIntentId,
-      },
+      metadata: insertedMetadata,
       created_at: nowIso,
       updated_at: nowIso,
     }])
+    .select('id, metadata, current_period_end')
+    .single()
 
-  if (insertError) {
-    throw insertError
+  if (insertError || !insertedSubscription?.id) {
+    throw insertError ?? new Error('Failed to create subscription row after Stripe checkout')
+  }
+
+  if (profileId) {
+    await sendPlanActivationEmailIfNeeded({
+      supabase,
+      table: 'subscriptions',
+      rowId: insertedSubscription.id,
+      profileId,
+      metadata: insertedSubscription.metadata,
+      planLabel: tier === 'diamond' ? 'Diamond' : 'Premium',
+      dashboardPath: '/advisor/dashboard?tab=subscription',
+      currentPeriodEnd: insertedSubscription.current_period_end ?? null,
+    })
   }
 }
 
@@ -472,7 +612,7 @@ export async function activateClientMembershipFromCheckoutSession(session: Strip
 
   const { data: existing, error: existingLookupError } = await supabase
     .from('client_memberships')
-    .select('id')
+    .select('id, metadata, current_period_end')
     .eq('stripe_subscription_id', referenceId)
     .maybeSingle()
 
@@ -481,6 +621,16 @@ export async function activateClientMembershipFromCheckoutSession(session: Strip
   }
 
   if (existing?.id) {
+    await sendPlanActivationEmailIfNeeded({
+      supabase,
+      table: 'client_memberships',
+      rowId: existing.id,
+      profileId,
+      metadata: existing.metadata,
+      planLabel: 'Gold',
+      dashboardPath: '/guest/dashboard',
+      currentPeriodEnd: existing.current_period_end ?? null,
+    })
     return
   }
 
@@ -523,7 +673,14 @@ export async function activateClientMembershipFromCheckoutSession(session: Strip
     }
   }
 
-  const { error: insertError } = await supabase
+  const insertedMetadata = {
+    ...metadata,
+    source: 'stripe_checkout_manual',
+    checkout_session_id: session.id,
+    payment_intent_id: paymentIntentId,
+  }
+
+  const { data: insertedMembership, error: insertError } = await supabase
     .from('client_memberships')
     .insert([{
       profile_id: profileId,
@@ -536,17 +693,25 @@ export async function activateClientMembershipFromCheckoutSession(session: Strip
       current_period_end: periodEnd.toISOString(),
       cancel_at_period_end: false,
       cancelled_at: null,
-      metadata: {
-        ...metadata,
-        source: 'stripe_checkout_manual',
-        checkout_session_id: session.id,
-        payment_intent_id: paymentIntentId,
-      },
+      metadata: insertedMetadata,
       created_at: nowIso,
       updated_at: nowIso,
     }])
+    .select('id, metadata, current_period_end')
+    .single()
 
-  if (insertError) {
-    throw insertError
+  if (insertError || !insertedMembership?.id) {
+    throw insertError ?? new Error('Failed to create client membership row after Stripe checkout')
   }
+
+  await sendPlanActivationEmailIfNeeded({
+    supabase,
+    table: 'client_memberships',
+    rowId: insertedMembership.id,
+    profileId,
+    metadata: insertedMembership.metadata,
+    planLabel: 'Gold',
+    dashboardPath: '/guest/dashboard',
+    currentPeriodEnd: insertedMembership.current_period_end ?? null,
+  })
 }
