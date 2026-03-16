@@ -11,8 +11,8 @@ const sections = [
     title: '1. OWNERSHIP AND CORPORATE DATA',
     paragraphs: [
       `1.1 The Website is currently offered and operated as a launch-phase project by ${LEGAL_DETAILS.brandName}.`,
-      `1.2 Until formal corporate registration (KVK), the responsible party for the Website is ${LEGAL_DETAILS.ownerName}, located at ${LEGAL_DETAILS.ownerAddress}, Email: ${LEGAL_DETAILS.legalEmail}.`,
-      `1.3 These Terms shall remain valid and binding upon the future transfer of the Website’s operations to a legal entity (${LEGAL_DETAILS.companyName}, B.V., Ltd, or equivalent) once registered.`,
+      `1.2 Until formal corporate registration in Malta is completed, the responsible party for the Website is ${LEGAL_DETAILS.ownerName}, domiciled at ${LEGAL_DETAILS.ownerAddress}, Email: ${LEGAL_DETAILS.legalEmail}.`,
+      `1.3 These Terms shall remain valid and binding upon the future transfer of the Website’s operations to a Maltese legal entity (${LEGAL_DETAILS.companyName}) once registered.`,
     ],
   },
   {
@@ -74,7 +74,7 @@ const sections = [
   {
     title: '9. GOVERNING LAW',
     paragraphs: [
-      '9.1 These Terms are governed by and construed in accordance with the laws of The Netherlands, or, until formal registration, the laws applicable to the registered owner. Any disputes shall be submitted to the exclusive jurisdiction of the competent courts in the owner’s region, unless mandatory law requires otherwise.',
+      '9.1 These Terms are governed by and construed in accordance with the laws of Malta. Any disputes shall be submitted to the exclusive jurisdiction of the competent courts of Malta, unless mandatory law requires otherwise.',
     ],
   },
 ] satisfies readonly TermsSection[]

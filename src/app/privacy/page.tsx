@@ -66,7 +66,7 @@ const sections = [
     title: '10. CONTACT',
     paragraphs: [
       `Privacy questions can be sent to ${LEGAL_DETAILS.legalEmail}.`,
-      `Future company details: ${LEGAL_DETAILS.companyName}, KVK ${LEGAL_DETAILS.kvkNumber}, VAT ${LEGAL_DETAILS.vatNumber}.`,
+      `Future Malta company details: ${LEGAL_DETAILS.companyName}, MBR ${LEGAL_DETAILS.kvkNumber}, VAT ${LEGAL_DETAILS.vatNumber}.`,
     ],
   },
 ] as const
