@@ -4,7 +4,7 @@ import AgeGateModal from '@/components/layout/AgeGateModal'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Lvvd – Listings Across Netherlands',
+    default: 'Lvvd – Pleasure begins with the perfect company',
     template: '%s | Lvvd',
   },
   description:
