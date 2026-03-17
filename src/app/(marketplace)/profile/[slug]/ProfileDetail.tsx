@@ -63,6 +63,7 @@ export default function ProfileDetail({ profile, related }: Props) {
   const [viewerRole, setViewerRole] = useState<string | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatMsg, setChatMsg] = useState('');
+  const [shareMsg, setShareMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const availabilityColor: Record<string, string> = {
     available: 'var(--success)',
@@ -229,6 +230,36 @@ export default function ProfileDetail({ profile, related }: Props) {
     }
   }
 
+  async function handleShareProfile() {
+    const url = window.location.href;
+    const title = `${profile.name} – Lvvd`;
+
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title, url });
+        setShareMsg({ type: 'success', text: 'Profile shared successfully.' });
+        return;
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return;
+      }
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setShareMsg({ type: 'success', text: 'Link copied to clipboard.' });
+        return;
+      }
+    } catch {
+      // Fallback handled below.
+    }
+
+    window.prompt('Copy this profile link:', url);
+    setShareMsg({ type: 'error', text: 'Automatic share unavailable. Copy the link from the prompt.' });
+  }
+
   function renderProfileSummaryCard(isSticky: boolean) {
     return (
       <div
@@ -350,15 +381,19 @@ export default function ProfileDetail({ profile, related }: Props) {
 
         <button
           className="btn-ghost w-full justify-center py-2.5 text-sm"
-          onClick={() => {
-            navigator.share?.({
-              title: `${profile.name} – Lvvd`,
-              url: window.location.href,
-            });
-          }}
+          onClick={handleShareProfile}
         >
           Share profile
         </button>
+
+        {shareMsg && (
+          <p
+            className="text-xs text-center"
+            style={{ color: shareMsg.type === 'success' ? '#86efac' : '#fca5a5' }}
+          >
+            {shareMsg.text}
+          </p>
+        )}
 
         {/* Safety notice */}
         <p className="text-xs text-center leading-relaxed" style={{ color: 'var(--text-muted)' }}>
