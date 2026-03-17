@@ -56,21 +56,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="px-4 lg:px-8 py-12" style={{ maxWidth: 1400, margin: '0 auto' }}>
-          <div className="rounded-2xl p-8 md:p-12 text-center relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, rgba(233,30,140,0.12) 0%, rgba(124,58,237,0.12) 100%)', border: '1px solid rgba(233,30,140,0.25)' }}>
-            <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full opacity-20 blur-3xl pointer-events-none" style={{ background: 'var(--accent)' }} />
-            <h2 className="text-2xl md:text-3xl font-black text-white mb-3">Are you an escort?</h2>
-            <p className="text-gray-400 mb-6 max-w-md mx-auto text-sm">
-              Post your listing for free and reach thousands of clients every day. Upgrade to Diamond or Premium for maximum visibility.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/register" className="btn-accent px-8 py-3">Post for free</Link>
-              <Link href="/pricing" className="btn-outline px-8 py-3">See pricing</Link>
-            </div>
-          </div>
-        </section>
       </main>
       <Footer />
     </>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import AgeGateModal from '@/components/layout/AgeGateModal'
+import BackHomeButton from '@/components/layout/BackHomeButton'
 
 export const metadata: Metadata = {
   title: {
@@ -21,6 +22,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
+        <BackHomeButton />
         <AgeGateModal />
       </body>
     </html>
