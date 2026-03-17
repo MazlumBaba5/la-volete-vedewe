@@ -53,6 +53,18 @@ function normalizeAdvisorGender(value: unknown): AdvisorGender | null {
   return null
 }
 
+function sanitizeAdvisorWeight(value: unknown): number | null {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+    ? Number(value)
+    : NaN
+
+  if (!Number.isInteger(numeric)) return null
+  if (numeric < 40 || numeric > 150) return null
+  return numeric
+}
+
 function getDbGenderCandidates(gender: AdvisorGender): AdvisorDbGender[] {
   if (gender === 'shemale') return ['shemale', 'trans', 'other', 'female', 'male']
   if (gender === 'couple') return ['couple', 'female', 'male']
@@ -159,6 +171,7 @@ export async function POST() {
     const incallRates = sanitizeRates(meta.incall_rates as unknown[] | undefined, 'incall')
     const outcallRates = sanitizeRates(meta.outcall_rates as unknown[] | undefined, 'outcall')
     const heightCm = sanitizeAdvisorHeight(meta.height_cm ?? meta.heightCm)
+    const weightKg = sanitizeAdvisorWeight(meta.weight_kg ?? meta.weightKg)
     const hairColorRaw = typeof meta.hair_color === 'string'
       ? meta.hair_color.trim()
       : typeof meta.hairColor === 'string'
@@ -182,6 +195,7 @@ export async function POST() {
       bio: (meta.bio as string | undefined)?.trim() || null,
       age: typeof meta.age === 'number' ? meta.age : null,
       height_cm: heightCm,
+      weight_kg: weightKg,
       hair_color: hairColor,
       eye_color: eyeColor,
       ethnicity: (meta.ethnicity as string | undefined)?.trim() || null,
@@ -313,6 +327,16 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: 'Please select a valid height between 140 and 210 cm' }, { status: 400 })
       }
       updates.height_cm = heightCm
+    }
+
+    if ('weight_kg' in updates) {
+      const rawWeight = updates.weight_kg
+      const isEmptyWeight = rawWeight === null || rawWeight === ''
+      const weightKg = isEmptyWeight ? null : sanitizeAdvisorWeight(rawWeight)
+      if (!isEmptyWeight && weightKg === null) {
+        return NextResponse.json({ error: 'Please enter a valid weight between 40 and 150 kg' }, { status: 400 })
+      }
+      updates.weight_kg = weightKg
     }
 
     if ('hair_color' in updates) {
