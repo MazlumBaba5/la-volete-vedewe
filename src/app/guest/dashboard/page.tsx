@@ -29,6 +29,38 @@ type GuestProfileResponse = {
   avatar_url: string | null
 }
 
+type GuestFavoriteItem = {
+  favorite_id: string
+  advisor_id: string
+  advisor_name: string
+  advisor_slug: string | null
+  city: string | null
+  availability: string | null
+  latest_photo_url: string | null
+  created_at: string
+  unread_count: number
+}
+
+type GuestFavoriteNotification = {
+  id: string
+  advisor_id: string
+  advisor_name: string
+  advisor_slug: string | null
+  event_type: 'new_photo' | 'online' | 'offline'
+  payload: Record<string, unknown> | null
+  is_read: boolean
+  created_at: string
+}
+
+type GuestFavoritesResponse = {
+  schema_ready: boolean
+  currentPlan: 'free' | 'gold'
+  message?: string
+  unread_total: number
+  items: GuestFavoriteItem[]
+  notifications: GuestFavoriteNotification[]
+}
+
 export default function GuestDashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('account')
@@ -42,6 +74,15 @@ export default function GuestDashboardPage() {
     schema_ready: true,
     currentPlan: 'free',
     membership: null,
+  })
+  const [favoritesLoading, setFavoritesLoading] = useState(true)
+  const [favoritesBusy, setFavoritesBusy] = useState<'read' | null>(null)
+  const [favoritesData, setFavoritesData] = useState<GuestFavoritesResponse>({
+    schema_ready: true,
+    currentPlan: 'free',
+    unread_total: 0,
+    items: [],
+    notifications: [],
   })
   const [settingsPassword, setSettingsPassword] = useState('')
   const [settingsSaving, setSettingsSaving] = useState(false)
@@ -62,6 +103,17 @@ export default function GuestDashboardPage() {
 
     return () => window.clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (activeTab !== 'account') return
+    if (membershipData.currentPlan !== 'gold') return
+
+    const id = window.setInterval(() => {
+      void loadFavorites(true)
+    }, 30000)
+
+    return () => window.clearInterval(id)
+  }, [activeTab, membershipData.currentPlan])
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search)
@@ -127,7 +179,7 @@ export default function GuestDashboardPage() {
       setUsername(nextUsername)
       setAvatarUrl((user.user_metadata?.avatar_url as string | undefined) ?? null)
     }
-    await Promise.all([loadMembership(), loadChatUnreadCount()])
+    await Promise.all([loadMembership(), loadFavorites(), loadChatUnreadCount()])
     setLoading(false)
   }
 
@@ -202,6 +254,50 @@ export default function GuestDashboardPage() {
     }
   }
 
+  async function loadFavorites(silent = false) {
+    if (!silent) {
+      setFavoritesLoading(true)
+    }
+
+    try {
+      const res = await fetch('/api/guest/favorites', { cache: 'no-store' })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to load favorites')
+      }
+      setFavoritesData(json as GuestFavoritesResponse)
+    } catch (error) {
+      setAccountMsg({ type: 'error', text: error instanceof Error ? error.message : 'Unable to load favorites' })
+    } finally {
+      if (!silent) {
+        setFavoritesLoading(false)
+      }
+    }
+  }
+
+  async function handleMarkFavoritesAsRead() {
+    setFavoritesBusy('read')
+    try {
+      const res = await fetch('/api/guest/favorites/notifications/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to mark notifications as read')
+      }
+      await loadFavorites(true)
+    } catch (error) {
+      setAccountMsg({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Unable to mark notifications as read',
+      })
+    } finally {
+      setFavoritesBusy(null)
+    }
+  }
+
   async function handleMembershipCheckout() {
     setMembershipBusy('checkout')
     setAccountMsg(null)
@@ -249,6 +345,12 @@ export default function GuestDashboardPage() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/')
+  }
+
+  function favoriteEventLabel(eventType: GuestFavoriteNotification['event_type']) {
+    if (eventType === 'new_photo') return 'posted new photos'
+    if (eventType === 'online') return 'is now online'
+    return 'went offline'
   }
 
   if (loading) {
@@ -327,7 +429,7 @@ export default function GuestDashboardPage() {
             <div className="rounded-xl p-6 space-y-4" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
               <h1 className="text-2xl font-black text-white">Client account</h1>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                Your client account is active. You can browse listings and, later, leave reviews on advisor profiles.
+                Your client account is active. You can browse listings, leave reviews, and with Gold save favorites with live alerts.
               </p>
 
               {accountMsg && (
@@ -422,8 +524,10 @@ export default function GuestDashboardPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={loadMembership}
-                    disabled={membershipLoading || membershipBusy !== null}
+                    onClick={() => {
+                      void Promise.all([loadMembership(), loadFavorites(true)])
+                    }}
+                    disabled={membershipLoading || membershipBusy !== null || favoritesLoading}
                     className="btn-ghost px-5 py-2 text-sm disabled:opacity-60"
                   >
                     {membershipLoading ? 'Refreshing...' : 'Refresh status'}
@@ -444,6 +548,148 @@ export default function GuestDashboardPage() {
                 <Link href="/" className="btn-accent text-sm px-5 py-2">Browse home</Link>
                 <Link href="/listings" className="btn-outline text-sm px-5 py-2">All listings</Link>
               </div>
+            </div>
+
+            <div className="rounded-xl p-6 space-y-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--accent)' }}>
+                    Favorites & alerts
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-white">Gold activity center</h2>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {favoritesData.unread_total > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleMarkFavoritesAsRead}
+                      disabled={favoritesBusy !== null || favoritesLoading}
+                      className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+                    >
+                      {favoritesBusy === 'read' ? 'Marking...' : 'Mark all as read'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void loadFavorites()}
+                    disabled={favoritesLoading || favoritesBusy !== null}
+                    className="btn-ghost px-4 py-2 text-xs disabled:opacity-60"
+                  >
+                    {favoritesLoading ? 'Refreshing...' : 'Refresh alerts'}
+                  </button>
+                </div>
+              </div>
+
+              {!favoritesData.schema_ready && (
+                <div className="rounded-lg px-4 py-3 text-xs" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.28)', color: '#fde68a' }}>
+                  {favoritesData.message}
+                </div>
+              )}
+
+              {favoritesData.schema_ready && favoritesData.currentPlan !== 'gold' && (
+                <div className="rounded-lg px-4 py-3 text-sm" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', color: '#fef3c7' }}>
+                  Gold is required to save favorite advisors and receive alerts when they post new photos or switch online/offline.
+                </div>
+              )}
+
+              {favoritesData.schema_ready && favoritesData.currentPlan === 'gold' && (
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Saved advisors</h3>
+                    {favoritesLoading ? (
+                      <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>Loading favorites...</p>
+                    ) : favoritesData.items.length === 0 ? (
+                      <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        No favorites saved yet. Open any advisor profile and tap “Save to favorites”.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        {favoritesData.items.map((item) => (
+                          <div
+                            key={item.favorite_id}
+                            className="flex items-center gap-3 rounded-xl px-3 py-3"
+                            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                          >
+                            <div className="h-12 w-12 overflow-hidden rounded-lg" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                              {item.latest_photo_url ? (
+                                <Image src={item.latest_photo_url} alt={item.advisor_name} width={48} height={48} className="h-full w-full object-cover" unoptimized />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-xs font-bold text-white">
+                                  {item.advisor_name.slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              {item.advisor_slug ? (
+                                <Link href={`/profile/${item.advisor_slug}`} className="text-sm font-semibold text-white hover:underline">
+                                  {item.advisor_name}
+                                </Link>
+                              ) : (
+                                <p className="text-sm font-semibold text-white">{item.advisor_name}</p>
+                              )}
+                              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                {item.city || 'Unknown city'} · {item.availability === 'offline' ? 'Offline' : 'Online'}
+                              </p>
+                            </div>
+                            {item.unread_count > 0 && (
+                              <span
+                                className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+                                style={{ background: 'var(--accent)' }}
+                              >
+                                {item.unread_count}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Recent alerts</h3>
+                    {favoritesLoading ? (
+                      <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>Loading alerts...</p>
+                    ) : favoritesData.notifications.length === 0 ? (
+                      <p className="mt-3 text-sm" style={{ color: 'var(--text-muted)' }}>
+                        No alerts yet. You&apos;ll see updates here when your favorites post photos or switch online/offline.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-2">
+                        {favoritesData.notifications.slice(0, 12).map((notification) => (
+                          <div
+                            key={notification.id}
+                            className="rounded-xl px-3 py-2.5 text-xs"
+                            style={{
+                              background: notification.is_read ? 'rgba(255,255,255,0.03)' : 'rgba(233,30,140,0.12)',
+                              border: `1px solid ${notification.is_read ? 'var(--border)' : 'rgba(233,30,140,0.35)'}`,
+                            }}
+                          >
+                            <p className="text-sm text-white">
+                              {notification.advisor_slug ? (
+                                <Link href={`/profile/${notification.advisor_slug}`} className="font-semibold hover:underline">
+                                  {notification.advisor_name}
+                                </Link>
+                              ) : (
+                                <span className="font-semibold">{notification.advisor_name}</span>
+                              )}
+                              {' '}
+                              {favoriteEventLabel(notification.event_type)}
+                            </p>
+                            <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                              {new Intl.DateTimeFormat('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }).format(new Date(notification.created_at))}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

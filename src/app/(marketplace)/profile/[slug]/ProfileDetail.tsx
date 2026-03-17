@@ -24,6 +24,14 @@ type ReviewsPayload = {
   reviews: ReviewItem[];
 }
 
+type FavoriteStatusPayload = {
+  schema_ready: boolean;
+  currentPlan: 'free' | 'gold';
+  can_use_favorites: boolean;
+  is_favorite: boolean;
+  message?: string;
+}
+
 function StarRow({ rating, size = 'text-base' }: { rating: number; size?: string }) {
   return (
     <div className={`flex items-center gap-1 ${size}`}>
@@ -64,6 +72,15 @@ export default function ProfileDetail({ profile, related }: Props) {
   const [chatBusy, setChatBusy] = useState(false);
   const [chatMsg, setChatMsg] = useState('');
   const [shareMsg, setShareMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [favoriteStatus, setFavoriteStatus] = useState<FavoriteStatusPayload>({
+    schema_ready: true,
+    currentPlan: 'free',
+    can_use_favorites: false,
+    is_favorite: false,
+  });
+  const [favoriteMsg, setFavoriteMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const availabilityColor: Record<string, string> = {
     available: 'var(--success)',
@@ -87,6 +104,43 @@ export default function ProfileDetail({ profile, related }: Props) {
   useEffect(() => {
     setViewCount(profile.views);
   }, [profile.views]);
+
+  useEffect(() => {
+    if (!profile.advisorId || viewerRole !== 'guest') {
+      return;
+    }
+
+    let active = true;
+
+    async function loadFavoriteStatus() {
+      setFavoriteLoading(true);
+      try {
+        const res = await fetch(`/api/guest/favorites/${profile.advisorId}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) {
+          throw new Error(json.error ?? 'Unable to load favorites status');
+        }
+
+        if (active) {
+          setFavoriteStatus(json as FavoriteStatusPayload);
+        }
+      } catch (error) {
+        if (active) {
+          setFavoriteMsg({ type: 'error', text: error instanceof Error ? error.message : 'Unable to load favorites status' });
+        }
+      } finally {
+        if (active) {
+          setFavoriteLoading(false);
+        }
+      }
+    }
+
+    void loadFavoriteStatus();
+
+    return () => {
+      active = false;
+    };
+  }, [profile.advisorId, viewerRole]);
 
   useEffect(() => {
     if (!profile.advisorId) return;
@@ -260,6 +314,50 @@ export default function ProfileDetail({ profile, related }: Props) {
     setShareMsg({ type: 'error', text: 'Automatic share unavailable. Copy the link from the prompt.' });
   }
 
+  async function handleToggleFavorite() {
+    if (!profile.advisorId) return;
+
+    if (!viewerRole) {
+      router.push('/login');
+      return;
+    }
+
+    if (viewerRole !== 'guest') {
+      setFavoriteMsg({ type: 'error', text: 'Favorites are available only for client Gold accounts.' });
+      return;
+    }
+
+    if (!favoriteStatus.can_use_favorites) {
+      router.push('/guest/dashboard?tab=account');
+      return;
+    }
+
+    setFavoriteBusy(true);
+    setFavoriteMsg(null);
+    try {
+      const method = favoriteStatus.is_favorite ? 'DELETE' : 'POST';
+      const res = await fetch(`/api/guest/favorites/${profile.advisorId}`, { method });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error ?? 'Unable to update favorites');
+      }
+
+      setFavoriteStatus((current) => ({
+        ...current,
+        is_favorite: Boolean(json.is_favorite),
+      }));
+      setFavoriteMsg({
+        type: 'success',
+        text: json.is_favorite ? 'Advisor saved to your Gold favorites.' : 'Advisor removed from your favorites.',
+      });
+    } catch (error) {
+      setFavoriteMsg({ type: 'error', text: error instanceof Error ? error.message : 'Unable to update favorites' });
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }
+
   function renderProfileSummaryCard(isSticky: boolean) {
     return (
       <div
@@ -378,6 +476,38 @@ export default function ProfileDetail({ profile, related }: Props) {
         >
           📞 Contact {profile.name}
         </button>
+
+        <button
+          type="button"
+          onClick={handleToggleFavorite}
+          disabled={favoriteBusy || favoriteLoading || !profile.advisorId || viewerRole === 'advisor'}
+          className="btn-outline w-full justify-center py-2.5 text-sm disabled:opacity-60"
+        >
+          {!viewerRole
+            ? 'Sign in to save favorites'
+            : viewerRole !== 'guest'
+            ? 'Favorites for client Gold accounts'
+            : favoriteLoading
+            ? 'Loading favorites...'
+            : favoriteBusy
+            ? favoriteStatus.is_favorite
+              ? 'Removing...'
+              : 'Saving...'
+            : favoriteStatus.can_use_favorites
+            ? favoriteStatus.is_favorite
+              ? 'Remove from favorites'
+              : 'Save to favorites'
+            : 'Gold required for favorites'}
+        </button>
+
+        {favoriteMsg && (
+          <p
+            className="text-xs text-center"
+            style={{ color: favoriteMsg.type === 'success' ? '#86efac' : '#fca5a5' }}
+          >
+            {favoriteMsg.text}
+          </p>
+        )}
 
         <button
           className="btn-ghost w-full justify-center py-2.5 text-sm"
