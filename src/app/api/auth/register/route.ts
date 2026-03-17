@@ -2,8 +2,11 @@ import { NextResponse } from 'next/server'
 import { createAdminClient, createClient } from '@/lib/supabase/server'
 import {
   deriveAvailability,
+  isAdvisorEyeColor,
   isAdvisorEthnicity,
+  isAdvisorHairColor,
   isSexOrientation,
+  sanitizeAdvisorHeight,
   sanitizeAvailabilitySlots,
   sanitizeDateTypes,
   sanitizeRates,
@@ -33,6 +36,14 @@ type Body = {
   name?: string
   advisorCategory?: 'woman' | 'man' | 'couple' | 'shemale'
   age?: number
+  heightCm?: number
+  weightKg?: number
+  hairColor?: string
+  eyeColor?: string
+  height_cm?: number
+  weight_kg?: number
+  hair_color?: string
+  eye_color?: string
   gender?: AdvisorGender | 'trans' | 'other'
   ethnicity?: string
   city?: string
@@ -135,6 +146,18 @@ function validateAdvisorPhotos(photos: File[]) {
   return null
 }
 
+function sanitizeAdvisorWeight(value: unknown): number | null {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim().length > 0
+    ? Number(value)
+    : NaN
+
+  if (!Number.isInteger(numeric)) return null
+  if (numeric < 40 || numeric > 150) return null
+  return numeric
+}
+
 async function uploadAdvisorPhotos(advisorId: string, photos: File[]) {
   const uploaded: Array<{ url: string; publicId: string }> = []
 
@@ -210,6 +233,20 @@ export async function POST(req: Request) {
     const availabilitySlots = sanitizeAvailabilitySlots(body.availabilitySlots)
     const incallRates = sanitizeRates(body.incallRates, 'incall')
     const outcallRates = sanitizeRates(body.outcallRates, 'outcall')
+    const heightCm = sanitizeAdvisorHeight(body.heightCm ?? body.height_cm)
+    const weightKg = sanitizeAdvisorWeight(body.weightKg ?? body.weight_kg)
+    const hairColorRaw = typeof body.hairColor === 'string'
+      ? body.hairColor.trim()
+      : typeof body.hair_color === 'string'
+      ? body.hair_color.trim()
+      : ''
+    const eyeColorRaw = typeof body.eyeColor === 'string'
+      ? body.eyeColor.trim()
+      : typeof body.eye_color === 'string'
+      ? body.eye_color.trim()
+      : ''
+    const hairColor = hairColorRaw && isAdvisorHairColor(hairColorRaw) ? hairColorRaw : null
+    const eyeColor = eyeColorRaw && isAdvisorEyeColor(eyeColorRaw) ? eyeColorRaw : null
 
     if (body.role === 'advisor') {
       if (!body.email) {
@@ -226,6 +263,22 @@ export async function POST(req: Request) {
 
       if (!body.ethnicity || !isAdvisorEthnicity(body.ethnicity)) {
         return NextResponse.json({ error: 'Please select a valid ethnicity' }, { status: 400 })
+      }
+
+      if (heightCm === null) {
+        return NextResponse.json({ error: 'Please select a valid height between 140 and 210 cm' }, { status: 400 })
+      }
+
+      if (weightKg === null) {
+        return NextResponse.json({ error: 'Please enter a valid weight between 40 and 150 kg' }, { status: 400 })
+      }
+
+      if (!hairColor) {
+        return NextResponse.json({ error: 'Please select a valid hair color' }, { status: 400 })
+      }
+
+      if (!eyeColor) {
+        return NextResponse.json({ error: 'Please select a valid eye color' }, { status: 400 })
       }
 
       const requestedGender = normalizeAdvisorGender(body.gender)
@@ -286,6 +339,10 @@ export async function POST(req: Request) {
           username: body.role === 'guest' ? normalizeGuestUsername(body.name?.trim() || '') : '',
           advisor_category: advisorCategory,
           age: body.age ?? null,
+          height_cm: heightCm,
+          weight_kg: weightKg,
+          hair_color: hairColor ?? '',
+          eye_color: eyeColor ?? '',
           gender: normalizedGender,
           ethnicity: body.ethnicity?.trim() ?? '',
           city: selectedCity?.city ?? '',
@@ -327,6 +384,10 @@ export async function POST(req: Request) {
         city,
         region: selectedCity?.region || null,
         age: body.age ?? null,
+        height_cm: heightCm,
+        weight_kg: weightKg,
+        hair_color: hairColor,
+        eye_color: eyeColor,
         ethnicity: body.ethnicity?.trim() || null,
         bio: body.bio?.trim() || null,
         sexual_orientation: body.sexualOrientation ?? null,

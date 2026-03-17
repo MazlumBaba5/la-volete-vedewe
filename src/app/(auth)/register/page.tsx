@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import CityAutocomplete from '@/components/ui/CityAutocomplete';
 import {
+  ADVISOR_EYE_COLORS,
   ADVISOR_ETHNICITIES,
+  ADVISOR_HAIR_COLORS,
+  ADVISOR_HEIGHT_OPTIONS,
   AVAILABILITY_DAYS,
   AVAILABILITY_TIME_OPTIONS,
   BDSM_SERVICE_OPTIONS,
@@ -32,6 +35,10 @@ type RegisterForm = {
   password: string;
   name: string;
   age: string;
+  heightCm: string;
+  weightKg: string;
+  hairColor: string;
+  eyeColor: string;
   ethnicity: string;
   gender: GenderType;
   city: string;
@@ -154,6 +161,10 @@ export default function RegisterPage() {
     password: '',
     name: '',
     age: '',
+    heightCm: '',
+    weightKg: '',
+    hairColor: '',
+    eyeColor: '',
     ethnicity: '',
     gender: 'female',
     city: '',
@@ -283,6 +294,10 @@ export default function RegisterPage() {
         name: form.name,
         advisorCategory: categoryFromGender(form.gender),
         age: form.age ? Number(form.age) : null,
+        heightCm: form.heightCm ? Number(form.heightCm) : null,
+        weightKg: form.weightKg ? Number(form.weightKg) : null,
+        hairColor: form.hairColor,
+        eyeColor: form.eyeColor,
         ethnicity: form.ethnicity,
         gender: form.gender,
         city: form.city,
@@ -515,6 +530,50 @@ export default function RegisterPage() {
                     <select required value={form.sexualOrientation} onChange={(e) => updateField('sexualOrientation', e.target.value)} className="input-dark">
                       <option value="">Select orientation</option>
                       {SEX_ORIENTATION_OPTIONS.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Height</label>
+                    <select required value={form.heightCm} onChange={(e) => updateField('heightCm', e.target.value)} className="input-dark">
+                      <option value="">Select height</option>
+                      {ADVISOR_HEIGHT_OPTIONS.map((height) => (
+                        <option key={height} value={height}>{height} cm</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Weight</label>
+                    <input
+                      type="number"
+                      min={40}
+                      max={150}
+                      required
+                      value={form.weightKg}
+                      onChange={(e) => updateField('weightKg', e.target.value)}
+                      placeholder="kg"
+                      className="input-dark"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Hair</label>
+                    <select required value={form.hairColor} onChange={(e) => updateField('hairColor', e.target.value)} className="input-dark">
+                      <option value="">Select hair color</option>
+                      {ADVISOR_HAIR_COLORS.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Eyes</label>
+                    <select required value={form.eyeColor} onChange={(e) => updateField('eyeColor', e.target.value)} className="input-dark">
+                      <option value="">Select eye color</option>
+                      {ADVISOR_EYE_COLORS.map((item) => (
                         <option key={item} value={item}>{item}</option>
                       ))}
                     </select>
