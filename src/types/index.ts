@@ -42,6 +42,7 @@ export interface Profile {
   description: string;
   photos: ProfilePhoto[];
   services: string[];
+  dateTypes?: string[];
   attributes: {
     height: number;
     weight: number;

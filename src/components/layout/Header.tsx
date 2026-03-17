@@ -10,8 +10,8 @@ const SERVICE_LINKS = [
   { label: 'InCall', service: 'Incall' },
   { label: 'OutCall (Escort)', service: 'Outcall' },
   { label: 'Erotic massage', service: 'Erotic massage' },
-  { label: 'BDSM', service: 'Domination' },
-  { label: 'SexCam', service: 'Webcam' },
+  { label: 'BDSM', service: 'BDSM' },
+  { label: 'SexCam', service: 'SexCam' },
 ] as const;
 
 export default function Header() {

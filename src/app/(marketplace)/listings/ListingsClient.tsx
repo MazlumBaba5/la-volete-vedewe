@@ -9,6 +9,56 @@ import SearchFiltersPanel from '@/components/marketplace/SearchFilters'
 const TIER_ORDER: Record<string, number> = { diamond: 0, premium: 1, free: 2 }
 const ITEMS_PER_PAGE = 12
 
+const SERVICE_ALIAS_MAP: Record<string, string[]> = {
+    incall: ['in call', 'incall escort', 'incall'],
+    outcall: ['out call', 'outcall escort', 'outcall'],
+    massage: ['massage', 'erotic massage'],
+    'erotic massage': ['erotic massage', 'massage'],
+    bdsm: ['bdsm', 'domination'],
+    domination: ['domination', 'bdsm'],
+    sexcam: ['sexcam', 'webcam'],
+    webcam: ['webcam', 'sexcam'],
+}
+
+function normalizeServiceToken(value: string): string {
+    return value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim()
+}
+
+function expandServiceTokens(value: string): string[] {
+    const normalized = normalizeServiceToken(value)
+    if (!normalized) return []
+
+    const aliases = SERVICE_ALIAS_MAP[normalized] ?? []
+    return Array.from(new Set([normalized, ...aliases.map(normalizeServiceToken)]))
+}
+
+function getProfileServiceTokens(profile: Profile): Set<string> {
+    const tokens = new Set<string>()
+
+    for (const service of profile.services) {
+        for (const token of expandServiceTokens(service)) {
+            tokens.add(token)
+        }
+    }
+
+    for (const dateType of profile.dateTypes ?? []) {
+        for (const token of expandServiceTokens(dateType)) {
+            tokens.add(token)
+        }
+    }
+
+    return tokens
+}
+
+function hasDateType(profile: Profile, dateType: 'incall' | 'outcall'): boolean {
+    return (profile.dateTypes ?? [])
+        .map((value) => normalizeServiceToken(value))
+        .includes(dateType)
+}
+
 function filterProfiles(profiles: Profile[], filters: SearchFilters): Profile[] {
     let result = [...profiles]
 
@@ -30,11 +80,18 @@ function filterProfiles(profiles: Profile[], filters: SearchFilters): Profile[] 
     if (filters.verified) result = result.filter((p) => p.isVerified)
     if (filters.isOnline) result = result.filter((p) => p.isOnline)
     if (filters.services?.length) {
-        result = result.filter((p) =>
-            filters.services!.some((service) =>
-                p.services.some((profileService) => profileService.toLowerCase() === service.toLowerCase())
-            )
-        )
+        result = result.filter((p) => {
+            const profileTokens = getProfileServiceTokens(p)
+            return filters.services!.some((service) => {
+                const normalizedService = normalizeServiceToken(service)
+
+                if (normalizedService === 'incall' || normalizedService === 'outcall') {
+                    return hasDateType(p, normalizedService)
+                }
+
+                return expandServiceTokens(service).some((token) => profileTokens.has(token))
+            })
+        })
     }
     if (filters.minPrice) result = result.filter((p) => p.rates.some((r) => r.price >= filters.minPrice!))
     if (filters.maxPrice) result = result.filter((p) => p.rates.some((r) => r.price <= filters.maxPrice!))

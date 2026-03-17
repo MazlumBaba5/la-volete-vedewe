@@ -6,8 +6,8 @@ import { type SearchFilters, type City } from '@/types'
 
 const AVAILABLE_SERVICES = [
   'GFE', 'Escort', 'Dinner', 'Travel', 'Incall',
-  'Outcall', 'Massage', 'Erotic massage', 'Domination',
-  'Virtual', 'Webcam', 'Couples',
+  'Outcall', 'Massage', 'Erotic massage', 'BDSM',
+  'SexCam', 'Virtual', 'Webcam', 'Couples',
 ]
 
 interface Props {

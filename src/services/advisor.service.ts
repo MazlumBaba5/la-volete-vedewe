@@ -27,6 +27,7 @@ const PUBLIC_COLUMNS_BASE = `
   hair_color,
   ethnicity,
   services_tags,
+  date_types,
   incall_rates,
   outcall_rates,
   availability,
@@ -88,6 +89,7 @@ function mapRow(row: Record<string, unknown>, subscriptionTier?: string): Profil
     description: (row.bio as string) || '',
     photos,
     services: (row.services_tags as string[]) || [],
+    dateTypes: (row.date_types as string[]) || [],
     attributes: {
       height: (row.height_cm as number) || 0,
       weight: (row.weight_kg as number) || 0,
